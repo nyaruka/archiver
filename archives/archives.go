@@ -946,6 +946,11 @@ func ArchiveOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org
 	return dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, dailiesPurged, nil
 }
 
+// circuit-break after this many consecutive orgs hit a systemic ArchiveOrg error —
+// almost always means an infra dependency is down and the next orgs will just burn
+// their 12-hour timeouts
+const maxConsecutiveOrgFailures = 3
+
 // ArchiveActiveOrgs fetches active orgs and archives messages and runs
 func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 	start := dates.Now()
@@ -965,16 +970,23 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 	totalRunsRollupsCreated, totalMsgsRollupsCreated := 0, 0
 	totalRunsRollupsFailed, totalMsgsRollupsFailed := 0, 0
 
+	orgFailures := 0
+	consecutiveFailures := 0
+	var circuitBreakErr error
+
 	// for each org, do our export
 	for _, org := range orgs {
 		// no single org should take more than 12 hours
 		ctx, cancel := context.WithTimeout(context.Background(), time.Hour*12)
 		log := slog.With("org_id", org.ID, "org_name", org.Name)
 
+		orgFailed := false
+
 		if rt.Config.ArchiveMessages {
 			dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, MessageType)
 			if err != nil {
 				log.Error("error archiving org messages", "error", err, "archive_type", MessageType)
+				orgFailed = true
 			}
 			totalMsgsRecordsArchived += countRecords(dailiesCreated)
 			totalMsgsArchivesCreated += len(dailiesCreated)
@@ -986,6 +998,7 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 			dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, RunType)
 			if err != nil {
 				log.Error("error archiving org runs", "error", err, "archive_type", RunType)
+				orgFailed = true
 			}
 			totalRunsRecordsArchived += countRecords(dailiesCreated)
 			totalRunsArchivesCreated += len(dailiesCreated)
@@ -995,10 +1008,22 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 		}
 
 		cancel()
+
+		if orgFailed {
+			orgFailures++
+			consecutiveFailures++
+			if consecutiveFailures >= maxConsecutiveOrgFailures {
+				circuitBreakErr = fmt.Errorf("aborting: %d consecutive orgs failed to archive", consecutiveFailures)
+				slog.Error("circuit-breaking archival run", "error", circuitBreakErr)
+				break
+			}
+		} else {
+			consecutiveFailures = 0
+		}
 	}
 
 	timeTaken := dates.Now().Sub(start)
-	slog.Info("archiving of active orgs complete", "time_taken", timeTaken, "num_orgs", len(orgs))
+	slog.Info("archiving of active orgs complete", "time_taken", timeTaken, "num_orgs", len(orgs), "org_failures", orgFailures)
 
 	msgsDim := cwatch.Dimension("ArchiveType", "msgs")
 	runsDim := cwatch.Dimension("ArchiveType", "runs")
@@ -1015,13 +1040,20 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 		cwatch.Datum("RollupsCreated", float64(totalRunsRollupsCreated), types.StandardUnitCount, runsDim),
 		cwatch.Datum("RollupsFailed", float64(totalMsgsRollupsFailed), types.StandardUnitCount, msgsDim),
 		cwatch.Datum("RollupsFailed", float64(totalRunsRollupsFailed), types.StandardUnitCount, runsDim),
+		cwatch.Datum("OrgsFailed", float64(orgFailures), types.StandardUnitCount),
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), time.Minute)
-	if err = rt.CW.Send(ctx, metrics...); err != nil {
+	if err := rt.CW.Send(ctx, metrics...); err != nil {
 		slog.Error("error sending metrics", "error", err)
 	}
 	cancel()
 
+	if circuitBreakErr != nil {
+		return circuitBreakErr
+	}
+	if orgFailures > 0 {
+		return fmt.Errorf("%d of %d orgs failed to archive", orgFailures, len(orgs))
+	}
 	return nil
 }
