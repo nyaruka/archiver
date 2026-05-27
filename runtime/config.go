@@ -42,7 +42,7 @@ func NewDefaultConfig() *Config {
 		ArchiveRuns:     true,
 		RetentionPeriod: 90,
 
-		CloudwatchNamespace: "Temba/Archiver",
+		CloudwatchNamespace: "Archiver",
 		DeploymentID:        "dev",
 
 		LogLevel: "info",
