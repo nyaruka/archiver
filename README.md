@@ -8,6 +8,13 @@
 Service for archiving old RapidPro/TextIt runs and messages. It interacts directly with the database 
 and writes archive files to S3.
 
+## Operating model
+
+Archiver runs a single archival pass and then exits. Its exit code is meaningful: `0` on success,
+non-zero if any initialization step or the archival itself failed. It does not schedule itself —
+run it on whatever cadence you need from an external scheduler (cron, a Kubernetes CronJob, an
+AWS ECS Scheduled Task driven by EventBridge, etc.).
+
 ## Configuration
 
 The service uses a tiered configuration system, each option takes precendence over the ones above it:
@@ -25,10 +32,13 @@ environment variables and parameters and for more details on each option.
 
 ### AWS services:
 
- * `ARCHIVER_AWS_ACCESS_KEY_ID`: AWS access key id used to authenticate to AWS
- * `ARCHIVER_AWS_SECRET_ACCESS_KEY`: AWS secret access key used to authenticate to AWS
  * `ARCHIVER_AWS_REGION`: AWS region (e.g. `eu-west-1`)
- 
+
+Credentials are resolved via the standard AWS SDK default credential chain (instance/task IAM
+role, `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables, shared credentials
+file, etc.). When running on AWS the task/instance role is the recommended option; no
+archiver-specific credential variables need to be set.
+
 For writing of archives, Archiver needs access to a storage bucket on an S3 compatible service. We recommend that 
 you choose SSE-S3 encryption as this is the only type that supports validation of upload ETags.
 

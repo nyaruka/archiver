@@ -1,18 +1,17 @@
 package main
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/getsentry/sentry-go"
 	_ "github.com/lib/pq"
 	"github.com/nyaruka/ezconf"
 	"github.com/nyaruka/gocommon/aws/cwatch"
-	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/rp-archiver/archives"
 	"github.com/nyaruka/rp-archiver/runtime"
 	slogmulti "github.com/samber/slog-multi"
@@ -34,8 +33,7 @@ func main() {
 	var level slog.Level
 	err := level.UnmarshalText([]byte(config.LogLevel))
 	if err != nil {
-		log.Fatalf("invalid log level %s", level)
-		os.Exit(1)
+		log.Fatalf("invalid log level %q", config.LogLevel)
 	}
 
 	// configure our logger
@@ -46,6 +44,7 @@ func main() {
 	logger.Info("starting archiver", "version", version, "released", date)
 
 	// if we have a DSN entry, try to initialize it
+	sentryEnabled := false
 	if config.SentryDSN != "" {
 		err := sentry.Init(sentry.ClientOptions{
 			Dsn:           config.SentryDSN,
@@ -53,10 +52,8 @@ func main() {
 		})
 		if err != nil {
 			log.Fatalf("error initiating sentry client, error %s, dsn %s", err, config.SentryDSN)
-			os.Exit(1)
 		}
-
-		defer sentry.Flush(2 * time.Second)
+		sentryEnabled = true
 
 		logger = slog.New(
 			slogmulti.Fanout(
@@ -68,9 +65,18 @@ func main() {
 		slog.SetDefault(logger)
 	}
 
+	// fatal exits the process with status 1 after flushing sentry so the ECS task is marked failed
+	fatal := func(msg string, args ...any) {
+		logger.Error(msg, args...)
+		if sentryEnabled {
+			sentry.Flush(2 * time.Second)
+		}
+		os.Exit(1)
+	}
+
 	// our settings shouldn't contain a timezone, nothing will work right with this not being a constant UTC
 	if strings.Contains(config.DB, "TimeZone") {
-		logger.Error("invalid db connection string, do not specify a timezone, archiver always uses UTC", "db", config.DB)
+		fatal("invalid db connection string, do not specify a timezone, archiver always uses UTC", "db", config.DB)
 	}
 
 	// force our DB connection to be in UTC
@@ -86,79 +92,41 @@ func main() {
 
 	rt.DB, err = sqlx.Open("postgres", config.DB)
 	if err != nil {
-		logger.Error("error connecting to db", "error", err)
-	} else {
-		rt.DB.SetMaxOpenConns(2)
-		logger.Info("db ok", "state", "starting")
+		fatal("error opening db", "error", err)
 	}
+	rt.DB.SetMaxOpenConns(2)
+
+	// sqlx.Open doesn't dial — ping to verify connectivity so init fails fast
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := rt.DB.PingContext(pingCtx); err != nil {
+		pingCancel()
+		fatal("error connecting to db", "error", err)
+	}
+	pingCancel()
+	logger.Info("db ok", "state", "starting")
 
 	rt.S3, err = archives.NewS3Client(config, true)
 	if err != nil {
-		logger.Error("unable to initialize s3 client", "error", err)
-	} else {
-		logger.Info("s3 bucket ok", "state", "starting")
+		fatal("unable to initialize s3 client", "error", err)
 	}
+	logger.Info("s3 bucket ok", "state", "starting")
 
-	wg := &sync.WaitGroup{}
+	if err := archives.EnsureTempArchiveDirectory(config.TempDir); err != nil {
+		fatal("cannot write to temp directory", "error", err)
+	}
+	logger.Info("tmp file access ok", "state", "starting")
 
-	// ensure that we can actually write to the temp directory
-	err = archives.EnsureTempArchiveDirectory(config.TempDir)
+	rt.CW, err = cwatch.NewService("", "", config.AWSRegion, config.CloudwatchNamespace, config.DeploymentID)
 	if err != nil {
-		logger.Error("cannot write to temp directory", "error", err)
-	} else {
-		logger.Info("tmp file access ok", "state", "starting")
+		fatal("unable to create cloudwatch service", "error", err)
+	}
+	logger.Info("cloudwatch service ok", "state", "starting")
+
+	if err := archives.ArchiveActiveOrgs(rt); err != nil {
+		fatal("error archiving", "error", err)
 	}
 
-	// parse our start time
-	timeOfDay, err := dates.ParseTimeOfDay("tt:mm", config.StartTime)
-	if err != nil {
-		logger.Error("invalid start time supplied, format: HH:MM", "error", err)
+	if sentryEnabled {
+		sentry.Flush(2 * time.Second)
 	}
-
-	rt.CW, err = cwatch.NewService(config.AWSAccessKeyID, config.AWSSecretAccessKey, config.AWSRegion, config.CloudwatchNamespace, config.DeploymentID)
-	if err != nil {
-		logger.Error("unable to create cloudwatch service", "error", err)
-	} else {
-		logger.Info("cloudwatch service ok", "state", "starting")
-	}
-
-	if config.Once {
-		doArchival(rt)
-	} else {
-		for {
-			nextArchival := getNextArchivalTime(timeOfDay)
-			napTime := time.Until(nextArchival)
-
-			logger.Info("sleeping until next archival", "sleep_time", napTime, "next_archival", nextArchival)
-			time.Sleep(napTime)
-
-			doArchival(rt)
-		}
-	}
-
-	wg.Wait()
-}
-
-func doArchival(rt *runtime.Runtime) {
-	for {
-		// try to archive all active orgs, and if it fails, wait 5 minutes and try again
-		err := archives.ArchiveActiveOrgs(rt)
-		if err != nil {
-			slog.Error("error archiving, will retry in 5 minutes", "error", err)
-			time.Sleep(time.Minute * 5)
-			continue
-		} else {
-			break
-		}
-	}
-}
-
-func getNextArchivalTime(tod dates.TimeOfDay) time.Time {
-	t := dates.ExtractDate(dates.Now().In(time.UTC)).Combine(tod, time.UTC)
-
-	// if this time is in the past, add a day
-	if t.Before(dates.Now()) {
-		t = t.Add(time.Hour * 24)
-	}
-	return t
 }
