@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"log/slog"
 	"os"
@@ -32,7 +33,7 @@ func main() {
 	var level slog.Level
 	err := level.UnmarshalText([]byte(config.LogLevel))
 	if err != nil {
-		log.Fatalf("invalid log level %s", level)
+		log.Fatalf("invalid log level %q", config.LogLevel)
 	}
 
 	// configure our logger
@@ -91,9 +92,17 @@ func main() {
 
 	rt.DB, err = sqlx.Open("postgres", config.DB)
 	if err != nil {
-		fatal("error connecting to db", "error", err)
+		fatal("error opening db", "error", err)
 	}
 	rt.DB.SetMaxOpenConns(2)
+
+	// sqlx.Open doesn't dial — ping to verify connectivity so init fails fast
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := rt.DB.PingContext(pingCtx); err != nil {
+		pingCancel()
+		fatal("error connecting to db", "error", err)
+	}
+	pingCancel()
 	logger.Info("db ok", "state", "starting")
 
 	rt.S3, err = archives.NewS3Client(config, true)
