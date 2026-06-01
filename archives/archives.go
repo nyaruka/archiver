@@ -907,8 +907,8 @@ func DeleteRolledUpDailyArchives(ctx context.Context, rt *runtime.Runtime, org O
 	return int(deletedCount), nil
 }
 
-// ArchiveOrg looks for any missing archives for the passed in org, creating and uploading them as necessary, returning the created archives
-func ArchiveOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, archiveType ArchiveType) ([]*Archive, []*Archive, []*Archive, []*Archive, []*Archive, error) {
+// archiveTypeForOrg looks for any missing archives of the given type for the passed in org, creating and uploading them as necessary, returning the created archives
+func archiveTypeForOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, archiveType ArchiveType) ([]*Archive, []*Archive, []*Archive, []*Archive, []*Archive, error) {
 	log := slog.With("org_id", org.ID, "org_name", org.Name)
 	start := dates.Now()
 
@@ -961,10 +961,12 @@ type orgResult struct {
 	runsRollupsFailed   int
 }
 
-// archiveOrg grabs a per-org lock and archives that org's messages and runs. It returns ok=false
+// ArchiveOrg grabs a per-org lock and archives that org's messages and runs. It returns ok=false
 // if the lock couldn't be grabbed or is already held by another task, in which case the org is skipped.
 // The lock is always released on the way out via defer, even if archiving panics or returns early.
-func archiveOrg(rt *runtime.Runtime, start time.Time, org Org, log *slog.Logger) (orgResult, bool) {
+func ArchiveOrg(rt *runtime.Runtime, start time.Time, org Org) (orgResult, bool) {
+	log := slog.With("org_id", org.ID, "org_name", org.Name)
+
 	// grab a lock for this org so that overlapping archiver tasks don't archive the same org at once
 	locker := locks.NewLocker(fmt.Sprintf("archiver:lock:org:%d", org.ID), time.Hour*13)
 	lockCtx, lockCancel := context.WithTimeout(context.Background(), time.Minute)
@@ -994,7 +996,7 @@ func archiveOrg(rt *runtime.Runtime, start time.Time, org Org, log *slog.Logger)
 
 	var res orgResult
 
-	msgDailiesCreated, msgDailiesFailed, msgMonthliesCreated, msgMonthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, MessageType)
+	msgDailiesCreated, msgDailiesFailed, msgMonthliesCreated, msgMonthliesFailed, _, err := archiveTypeForOrg(ctx, rt, start, org, MessageType)
 	if err != nil {
 		log.Error("error archiving org messages", "error", err, "archive_type", MessageType)
 	}
@@ -1004,7 +1006,7 @@ func archiveOrg(rt *runtime.Runtime, start time.Time, org Org, log *slog.Logger)
 	res.msgsRollupsCreated = len(msgMonthliesCreated)
 	res.msgsRollupsFailed = len(msgMonthliesFailed)
 
-	runDailiesCreated, runDailiesFailed, runMonthliesCreated, runMonthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, RunType)
+	runDailiesCreated, runDailiesFailed, runMonthliesCreated, runMonthliesFailed, _, err := archiveTypeForOrg(ctx, rt, start, org, RunType)
 	if err != nil {
 		log.Error("error archiving org runs", "error", err, "archive_type", RunType)
 	}
@@ -1038,9 +1040,7 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 
 	// for each org, do our export
 	for _, org := range orgs {
-		log := slog.With("org_id", org.ID, "org_name", org.Name)
-
-		res, ok := archiveOrg(rt, start, org, log)
+		res, ok := ArchiveOrg(rt, start, org)
 		if !ok {
 			continue
 		}
