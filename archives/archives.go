@@ -946,11 +946,6 @@ func ArchiveOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org
 	return dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, dailiesPurged, nil
 }
 
-// circuit-break after this many consecutive orgs hit a systemic ArchiveOrg error —
-// almost always means an infra dependency is down and the next orgs will just burn
-// their 12-hour timeouts
-const maxConsecutiveOrgFailures = 3
-
 // ArchiveActiveOrgs fetches active orgs and archives messages and runs
 func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 	start := dates.Now()
@@ -971,8 +966,6 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 	totalRunsRollupsFailed, totalMsgsRollupsFailed := 0, 0
 
 	orgFailures := 0
-	consecutiveFailures := 0
-	var circuitBreakErr error
 
 	// for each org, do our export
 	for _, org := range orgs {
@@ -1011,14 +1004,6 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 
 		if orgFailed {
 			orgFailures++
-			consecutiveFailures++
-			if consecutiveFailures >= maxConsecutiveOrgFailures {
-				circuitBreakErr = fmt.Errorf("aborting: %d consecutive orgs failed to archive", consecutiveFailures)
-				slog.Error("circuit-breaking archival run", "error", circuitBreakErr)
-				break
-			}
-		} else {
-			consecutiveFailures = 0
 		}
 	}
 
@@ -1049,9 +1034,6 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 	}
 	cancel()
 
-	if circuitBreakErr != nil {
-		return circuitBreakErr
-	}
 	if orgFailures > 0 {
 		return fmt.Errorf("%d of %d orgs failed to archive", orgFailures, len(orgs))
 	}
