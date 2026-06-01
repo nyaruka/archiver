@@ -907,8 +907,8 @@ func DeleteRolledUpDailyArchives(ctx context.Context, rt *runtime.Runtime, org O
 	return int(deletedCount), nil
 }
 
-// ArchiveOrg looks for any missing archives for the passed in org, creating and uploading them as necessary, returning the created archives
-func ArchiveOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, archiveType ArchiveType) ([]*Archive, []*Archive, []*Archive, []*Archive, []*Archive, error) {
+// archiveTypeForOrg looks for any missing archives of the given type for the passed in org, creating and uploading them as necessary, returning the created archives
+func archiveTypeForOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, archiveType ArchiveType) ([]*Archive, []*Archive, []*Archive, []*Archive, []*Archive, error) {
 	log := slog.With("org_id", org.ID, "org_name", org.Name)
 	start := dates.Now()
 
@@ -947,6 +947,78 @@ func ArchiveOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org
 	return dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, dailiesPurged, nil
 }
 
+// orgResult holds the per-org archiving counts for messages and runs
+type orgResult struct {
+	msgsRecordsArchived int
+	msgsArchivesCreated int
+	msgsArchivesFailed  int
+	msgsRollupsCreated  int
+	msgsRollupsFailed   int
+	runsRecordsArchived int
+	runsArchivesCreated int
+	runsArchivesFailed  int
+	runsRollupsCreated  int
+	runsRollupsFailed   int
+}
+
+// ArchiveOrg grabs a per-org lock and archives that org's messages and runs. It returns ok=false
+// if the lock couldn't be grabbed or is already held by another task, in which case the org is skipped.
+// The lock is always released on the way out via defer, even if archiving panics or returns early.
+func ArchiveOrg(rt *runtime.Runtime, start time.Time, org Org) (orgResult, bool) {
+	log := slog.With("org_id", org.ID, "org_name", org.Name)
+
+	// grab a lock for this org so that overlapping archiver tasks don't archive the same org at once
+	locker := locks.NewLocker(fmt.Sprintf("archiver:lock:org:%d", org.ID), time.Hour*13)
+	lockCtx, lockCancel := context.WithTimeout(context.Background(), time.Minute)
+	lock, err := locker.Grab(lockCtx, rt.VK, 0)
+	lockCancel()
+	if err != nil {
+		log.Error("error grabbing lock for org, skipping", "error", err)
+		return orgResult{}, false
+	}
+	if lock == "" {
+		log.Info("org already being archived by another task, skipping")
+		return orgResult{}, false
+	}
+
+	// release our lock now that we're done with this org
+	defer func() {
+		relCtx, relCancel := context.WithTimeout(context.Background(), time.Minute)
+		if err := locker.Release(relCtx, rt.VK, lock); err != nil {
+			log.Error("error releasing lock for org", "error", err)
+		}
+		relCancel()
+	}()
+
+	// no single org should take more than 12 hours
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour*12)
+	defer cancel()
+
+	var res orgResult
+
+	msgDailiesCreated, msgDailiesFailed, msgMonthliesCreated, msgMonthliesFailed, _, err := archiveTypeForOrg(ctx, rt, start, org, MessageType)
+	if err != nil {
+		log.Error("error archiving org messages", "error", err, "archive_type", MessageType)
+	}
+	res.msgsRecordsArchived = countRecords(msgDailiesCreated)
+	res.msgsArchivesCreated = len(msgDailiesCreated)
+	res.msgsArchivesFailed = len(msgDailiesFailed)
+	res.msgsRollupsCreated = len(msgMonthliesCreated)
+	res.msgsRollupsFailed = len(msgMonthliesFailed)
+
+	runDailiesCreated, runDailiesFailed, runMonthliesCreated, runMonthliesFailed, _, err := archiveTypeForOrg(ctx, rt, start, org, RunType)
+	if err != nil {
+		log.Error("error archiving org runs", "error", err, "archive_type", RunType)
+	}
+	res.runsRecordsArchived = countRecords(runDailiesCreated)
+	res.runsArchivesCreated = len(runDailiesCreated)
+	res.runsArchivesFailed = len(runDailiesFailed)
+	res.runsRollupsCreated = len(runMonthliesCreated)
+	res.runsRollupsFailed = len(runMonthliesFailed)
+
+	return res, true
+}
+
 // ArchiveActiveOrgs fetches active orgs and archives messages and runs
 func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 	start := dates.Now()
@@ -968,53 +1040,22 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 
 	// for each org, do our export
 	for _, org := range orgs {
-		log := slog.With("org_id", org.ID, "org_name", org.Name)
-
-		// grab a lock for this org so that overlapping archiver tasks don't archive the same org at once
-		locker := locks.NewLocker(fmt.Sprintf("archiver:lock:org:%d", org.ID), time.Hour*13)
-		lockCtx, lockCancel := context.WithTimeout(context.Background(), time.Minute)
-		lock, err := locker.Grab(lockCtx, rt.VK, 0)
-		lockCancel()
-		if err != nil {
-			log.Error("error grabbing lock for org, skipping", "error", err)
-			continue
-		}
-		if lock == "" {
-			log.Info("org already being archived by another task, skipping")
+		res, ok := ArchiveOrg(rt, start, org)
+		if !ok {
 			continue
 		}
 
-		// no single org should take more than 12 hours
-		ctx, cancel := context.WithTimeout(context.Background(), time.Hour*12)
+		totalMsgsRecordsArchived += res.msgsRecordsArchived
+		totalMsgsArchivesCreated += res.msgsArchivesCreated
+		totalMsgsArchivesFailed += res.msgsArchivesFailed
+		totalMsgsRollupsCreated += res.msgsRollupsCreated
+		totalMsgsRollupsFailed += res.msgsRollupsFailed
 
-		msgDailiesCreated, msgDailiesFailed, msgMonthliesCreated, msgMonthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, MessageType)
-		if err != nil {
-			log.Error("error archiving org messages", "error", err, "archive_type", MessageType)
-		}
-		totalMsgsRecordsArchived += countRecords(msgDailiesCreated)
-		totalMsgsArchivesCreated += len(msgDailiesCreated)
-		totalMsgsArchivesFailed += len(msgDailiesFailed)
-		totalMsgsRollupsCreated += len(msgMonthliesCreated)
-		totalMsgsRollupsFailed += len(msgMonthliesFailed)
-
-		runDailiesCreated, runDailiesFailed, runMonthliesCreated, runMonthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, RunType)
-		if err != nil {
-			log.Error("error archiving org runs", "error", err, "archive_type", RunType)
-		}
-		totalRunsRecordsArchived += countRecords(runDailiesCreated)
-		totalRunsArchivesCreated += len(runDailiesCreated)
-		totalRunsArchivesFailed += len(runDailiesFailed)
-		totalRunsRollupsCreated += len(runMonthliesCreated)
-		totalRunsRollupsFailed += len(runMonthliesFailed)
-
-		cancel()
-
-		// release our lock now that we're done with this org
-		relCtx, relCancel := context.WithTimeout(context.Background(), time.Minute)
-		if err := locker.Release(relCtx, rt.VK, lock); err != nil {
-			log.Error("error releasing lock for org", "error", err)
-		}
-		relCancel()
+		totalRunsRecordsArchived += res.runsRecordsArchived
+		totalRunsArchivesCreated += res.runsArchivesCreated
+		totalRunsArchivesFailed += res.runsArchivesFailed
+		totalRunsRollupsCreated += res.runsRollupsCreated
+		totalRunsRollupsFailed += res.runsRollupsFailed
 	}
 
 	timeTaken := dates.Now().Sub(start)

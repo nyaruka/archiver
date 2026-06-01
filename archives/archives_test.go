@@ -344,7 +344,7 @@ func TestArchiveOrgMessages(t *testing.T) {
 
 	assertCount(t, rt.DB, 4, `SELECT count(*) from msgs_broadcast WHERE org_id = $1`, 2)
 
-	dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, deleted, err := ArchiveOrg(ctx, rt, now, orgs[1], MessageType)
+	dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, deleted, err := archiveTypeForOrg(ctx, rt, now, orgs[1], MessageType)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 61, len(dailiesCreated))
@@ -481,7 +481,7 @@ func TestArchiveOrgRuns(t *testing.T) {
 	assert.NoError(t, err)
 	now := time.Date(2018, 1, 8, 12, 30, 0, 0, time.UTC)
 
-	dailiesCreated, _, monthliesCreated, _, deleted, err := ArchiveOrg(ctx, rt, now, orgs[2], RunType)
+	dailiesCreated, _, monthliesCreated, _, deleted, err := archiveTypeForOrg(ctx, rt, now, orgs[2], RunType)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 10, len(dailiesCreated))
@@ -540,7 +540,7 @@ func TestArchiveOrgRuns(t *testing.T) {
 	assert.Equal(t, 1, count)
 
 	// org 2 will create backfilled monthlies for 2017-08 and 2017-09.. and then only dailies for 2017-10-01 to 2017-10-10
-	dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, _, err := ArchiveOrg(ctx, rt, now, orgs[1], RunType)
+	dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, _, err := archiveTypeForOrg(ctx, rt, now, orgs[1], RunType)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 10, len(dailiesCreated))
