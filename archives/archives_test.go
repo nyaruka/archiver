@@ -3,6 +3,7 @@ package archives
 import (
 	"compress/gzip"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -15,6 +16,8 @@ import (
 	"github.com/nyaruka/gocommon/aws/cwatch"
 	"github.com/nyaruka/gocommon/dbutil/assertdb"
 	"github.com/nyaruka/rp-archiver/runtime"
+	"github.com/nyaruka/vkutil"
+	"github.com/nyaruka/vkutil/locks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vinovest/sqlx"
@@ -24,6 +27,7 @@ func setup(t *testing.T) (context.Context, *runtime.Runtime) {
 	ctx := t.Context()
 	config := runtime.NewDefaultConfig()
 	config.DB = "postgres://archiver_test:temba@postgres:5432/archiver_test?sslmode=disable&TimeZone=UTC"
+	config.Valkey = "valkey://valkey:6379/0"
 
 	// AWS default credential chain reads these — used by the localstack S3 client
 	t.Setenv("AWS_ACCESS_KEY_ID", "root")
@@ -40,6 +44,15 @@ func setup(t *testing.T) (context.Context, *runtime.Runtime) {
 	require.NoError(t, err)
 
 	_, err = db.Exec(string(testDB))
+	require.NoError(t, err)
+
+	vk, err := vkutil.NewPool(config.Valkey)
+	require.NoError(t, err)
+
+	// flush our test Valkey DB so locks don't leak between test runs
+	vc := vk.Get()
+	_, err = vc.Do("FLUSHDB")
+	vc.Close()
 	require.NoError(t, err)
 
 	s3Client, err := NewS3Client(config, false)
@@ -59,7 +72,7 @@ func setup(t *testing.T) (context.Context, *runtime.Runtime) {
 		s3Client.EmptyBucket(ctx, "temba-archives")
 	})
 
-	return ctx, &runtime.Runtime{Config: config, DB: db, S3: s3Client, CW: CW}
+	return ctx, &runtime.Runtime{Config: config, DB: db, VK: vk, S3: s3Client, CW: CW}
 }
 
 func TestGetMissingDayArchives(t *testing.T) {
@@ -546,6 +559,37 @@ func TestArchiveActiveOrgs(t *testing.T) {
 	err := ArchiveActiveOrgs(rt)
 	assert.NoError(t, err)
 
+}
+
+func TestArchiveActiveOrgsSkipsLockedOrg(t *testing.T) {
+	ctx, rt := setup(t)
+
+	orgs, err := GetActiveOrgs(ctx, rt)
+	require.NoError(t, err)
+
+	locked := orgs[1] // org 2 has archivable data
+
+	var before int
+	require.NoError(t, rt.DB.Get(&before, "SELECT count(*) FROM archives_archive WHERE org_id = $1", locked.ID))
+
+	// simulate another archiver task already working on this org by holding its lock
+	locker := locks.NewLocker(fmt.Sprintf("archiver:lock:org:%d", locked.ID), time.Hour)
+	lock, err := locker.Grab(ctx, rt.VK, 0)
+	require.NoError(t, err)
+	require.NotEmpty(t, lock)
+	defer locker.Release(ctx, rt.VK, lock)
+
+	require.NoError(t, ArchiveActiveOrgs(rt))
+
+	// the locked org should have been skipped, so its archive count is unchanged
+	var after int
+	require.NoError(t, rt.DB.Get(&after, "SELECT count(*) FROM archives_archive WHERE org_id = $1", locked.ID))
+	assert.Equal(t, before, after, "locked org should have been skipped")
+
+	// an unlocked org with data should still have been archived
+	var otherCount int
+	require.NoError(t, rt.DB.Get(&otherCount, "SELECT count(*) FROM archives_archive WHERE org_id = $1", orgs[2].ID))
+	assert.Greater(t, otherCount, 0, "unlocked org should have been archived")
 }
 
 func TestDeleteRolledUpDailyArchives(t *testing.T) {

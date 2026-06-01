@@ -8,6 +8,10 @@ jobs:
       image: golang:1.26-trixie
 
     services:
+      valkey:
+        image: valkey/valkey:8.1-alpine
+        ports:
+          - 6379:6379
       postgres:
         image: postgres:15-alpine
         env:

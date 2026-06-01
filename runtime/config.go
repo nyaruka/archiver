@@ -3,6 +3,7 @@ package runtime
 // Config is our top level configuration object
 type Config struct {
 	DB        string `help:"the connection string for our database"`
+	Valkey    string `help:"the connection string for our Valkey instance, used for locking"`
 	LogLevel  string `help:"the log level, one of error, warn, info, debug"`
 	SentryDSN string `help:"the sentry configuration to log errors to, if any"`
 
@@ -25,7 +26,8 @@ type Config struct {
 func NewDefaultConfig() *Config {
 
 	return &Config{
-		DB: "postgres://localhost/archiver_test?sslmode=disable",
+		DB:     "postgres://localhost/archiver_test?sslmode=disable",
+		Valkey: "valkey://localhost:6379/15",
 
 		AWSRegion: "us-east-1",
 
