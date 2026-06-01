@@ -14,6 +14,7 @@ import (
 	"github.com/nyaruka/gocommon/aws/cwatch"
 	"github.com/nyaruka/rp-archiver/archives"
 	"github.com/nyaruka/rp-archiver/runtime"
+	"github.com/nyaruka/vkutil"
 	slogmulti "github.com/samber/slog-multi"
 	slogsentry "github.com/samber/slog-sentry/v2"
 	"github.com/vinovest/sqlx"
@@ -104,6 +105,20 @@ func main() {
 	}
 	pingCancel()
 	logger.Info("db ok", "state", "starting")
+
+	rt.VK, err = vkutil.NewPool(config.Valkey)
+	if err != nil {
+		fatal("error creating valkey pool", "error", err)
+	}
+
+	// NewPool dials lazily — ping to verify connectivity so init fails fast
+	vc := rt.VK.Get()
+	if _, err := vc.Do("PING"); err != nil {
+		vc.Close()
+		fatal("error connecting to valkey", "error", err)
+	}
+	vc.Close()
+	logger.Info("valkey ok", "state", "starting")
 
 	rt.S3, err = archives.NewS3Client(config, true)
 	if err != nil {

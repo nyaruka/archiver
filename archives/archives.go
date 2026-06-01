@@ -22,6 +22,7 @@ import (
 	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/null/v3"
 	"github.com/nyaruka/rp-archiver/runtime"
+	"github.com/nyaruka/vkutil/locks"
 	"github.com/vinovest/sqlx"
 )
 
@@ -967,9 +968,24 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 
 	// for each org, do our export
 	for _, org := range orgs {
+		log := slog.With("org_id", org.ID, "org_name", org.Name)
+
+		// grab a lock for this org so that overlapping archiver tasks don't archive the same org at once
+		locker := locks.NewLocker(fmt.Sprintf("archiver:lock:org:%d", org.ID), time.Hour*13)
+		lockCtx, lockCancel := context.WithTimeout(context.Background(), time.Minute)
+		lock, err := locker.Grab(lockCtx, rt.VK, 0)
+		lockCancel()
+		if err != nil {
+			log.Error("error grabbing lock for org, skipping", "error", err)
+			continue
+		}
+		if lock == "" {
+			log.Info("org already being archived by another task, skipping")
+			continue
+		}
+
 		// no single org should take more than 12 hours
 		ctx, cancel := context.WithTimeout(context.Background(), time.Hour*12)
-		log := slog.With("org_id", org.ID, "org_name", org.Name)
 
 		msgDailiesCreated, msgDailiesFailed, msgMonthliesCreated, msgMonthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, MessageType)
 		if err != nil {
@@ -992,6 +1008,13 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 		totalRunsRollupsFailed += len(runMonthliesFailed)
 
 		cancel()
+
+		// release our lock now that we're done with this org
+		relCtx, relCancel := context.WithTimeout(context.Background(), time.Minute)
+		if err := locker.Release(relCtx, rt.VK, lock); err != nil {
+			log.Error("error releasing lock for org", "error", err)
+		}
+		relCancel()
 	}
 
 	timeTaken := dates.Now().Sub(start)

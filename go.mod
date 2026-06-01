@@ -8,9 +8,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.0
 	github.com/aws/smithy-go v1.24.3
 	github.com/getsentry/sentry-go v0.44.1
+	github.com/gomodule/redigo v1.9.2
 	github.com/lib/pq v1.12.3
 	github.com/nyaruka/ezconf v0.6.1
 	github.com/nyaruka/gocommon v1.78.1
+	github.com/nyaruka/vkutil v0.20.0
 	github.com/samber/slog-multi v1.8.0
 	github.com/samber/slog-sentry/v2 v2.10.3
 	github.com/stretchr/testify v1.11.1
