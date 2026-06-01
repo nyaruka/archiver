@@ -971,28 +971,25 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Hour*12)
 		log := slog.With("org_id", org.ID, "org_name", org.Name)
 
-		if rt.Config.ArchiveMessages {
-			dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, MessageType)
-			if err != nil {
-				log.Error("error archiving org messages", "error", err, "archive_type", MessageType)
-			}
-			totalMsgsRecordsArchived += countRecords(dailiesCreated)
-			totalMsgsArchivesCreated += len(dailiesCreated)
-			totalMsgsArchivesFailed += len(dailiesFailed)
-			totalMsgsRollupsCreated += len(monthliesCreated)
-			totalMsgsRollupsFailed += len(monthliesFailed)
+		msgDailiesCreated, msgDailiesFailed, msgMonthliesCreated, msgMonthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, MessageType)
+		if err != nil {
+			log.Error("error archiving org messages", "error", err, "archive_type", MessageType)
 		}
-		if rt.Config.ArchiveRuns {
-			dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, RunType)
-			if err != nil {
-				log.Error("error archiving org runs", "error", err, "archive_type", RunType)
-			}
-			totalRunsRecordsArchived += countRecords(dailiesCreated)
-			totalRunsArchivesCreated += len(dailiesCreated)
-			totalRunsArchivesFailed += len(dailiesFailed)
-			totalRunsRollupsCreated += len(monthliesCreated)
-			totalRunsRollupsFailed += len(monthliesFailed)
+		totalMsgsRecordsArchived += countRecords(msgDailiesCreated)
+		totalMsgsArchivesCreated += len(msgDailiesCreated)
+		totalMsgsArchivesFailed += len(msgDailiesFailed)
+		totalMsgsRollupsCreated += len(msgMonthliesCreated)
+		totalMsgsRollupsFailed += len(msgMonthliesFailed)
+
+		runDailiesCreated, runDailiesFailed, runMonthliesCreated, runMonthliesFailed, _, err := ArchiveOrg(ctx, rt, start, org, RunType)
+		if err != nil {
+			log.Error("error archiving org runs", "error", err, "archive_type", RunType)
 		}
+		totalRunsRecordsArchived += countRecords(runDailiesCreated)
+		totalRunsArchivesCreated += len(runDailiesCreated)
+		totalRunsArchivesFailed += len(runDailiesFailed)
+		totalRunsRollupsCreated += len(runMonthliesCreated)
+		totalRunsRollupsFailed += len(runMonthliesFailed)
 
 		cancel()
 	}

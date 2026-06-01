@@ -15,9 +15,7 @@ type Config struct {
 	TempDir       string `help:"directory where temporary archive files are written"`
 	CheckS3Hashes bool   `help:"whether to check S3 hashes of uploaded archives before deleting records"`
 
-	ArchiveMessages bool `help:"whether we should archive messages"`
-	ArchiveRuns     bool `help:"whether we should archive runs"`
-	RetentionPeriod int  `help:"the number of days to keep before archiving"`
+	RetentionPeriod int `help:"the number of days to keep before archiving"`
 
 	CloudwatchNamespace string `help:"the namespace to use for cloudwatch metrics"`
 	DeploymentID        string `help:"the deployment identifier to use for metrics"`
@@ -38,8 +36,6 @@ func NewDefaultConfig() *Config {
 		TempDir:       "/tmp",
 		CheckS3Hashes: true,
 
-		ArchiveMessages: true,
-		ArchiveRuns:     true,
 		RetentionPeriod: 90,
 
 		CloudwatchNamespace: "Archiver",
