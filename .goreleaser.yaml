@@ -1,7 +1,7 @@
 version: 2
 builds:
-  - main: ./cmd/rp-archiver/main.go
-    binary: rp-archiver
+  - main: ./cmd/archiver/main.go
+    binary: archiver
     goos:
       - darwin
       - linux

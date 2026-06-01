@@ -1,4 +1,4 @@
-module github.com/nyaruka/rp-archiver
+module github.com/nyaruka/archiver/v26
 
 go 1.26.0
 

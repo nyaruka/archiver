@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/nyaruka/gocommon/dates"
-	"github.com/nyaruka/rp-archiver/runtime"
+	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/vinovest/sqlx"
 )
 
