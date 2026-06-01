@@ -15,7 +15,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/nyaruka/gocommon/aws/cwatch"
 	"github.com/nyaruka/gocommon/dbutil/assertdb"
-	"github.com/nyaruka/rp-archiver/runtime"
+	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/nyaruka/vkutil"
 	"github.com/nyaruka/vkutil/locks"
 	"github.com/stretchr/testify/assert"

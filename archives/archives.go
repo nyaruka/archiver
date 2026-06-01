@@ -21,7 +21,7 @@ import (
 	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/null/v3"
-	"github.com/nyaruka/rp-archiver/runtime"
+	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/nyaruka/vkutil/locks"
 	"github.com/vinovest/sqlx"
 )

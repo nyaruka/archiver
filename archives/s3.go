@@ -19,7 +19,7 @@ import (
 	"github.com/aws/smithy-go/transport/http"
 	"github.com/nyaruka/gocommon/aws/s3x"
 	"github.com/nyaruka/null/v3"
-	"github.com/nyaruka/rp-archiver/runtime"
+	"github.com/nyaruka/archiver/v26/runtime"
 )
 
 // any file over this needs to be uploaded in chunks

@@ -1,9 +1,9 @@
 # 🗜️ Archiver
 
-[![tag](https://img.shields.io/github/tag/nyaruka/rp-archiver.svg)](https://github.com/nyaruka/rp-archiver/releases)
-[![Build Status](https://github.com/nyaruka/rp-archiver/workflows/CI/badge.svg)](https://github.com/nyaruka/rp-archiver/actions?query=workflow%3ACI) 
-[![codecov](https://codecov.io/gh/nyaruka/rp-archiver/branch/main/graph/badge.svg)](https://codecov.io/gh/nyaruka/rp-archiver) 
-[![Go Report Card](https://goreportcard.com/badge/github.com/nyaruka/rp-archiver)](https://goreportcard.com/report/github.com/nyaruka/rp-archiver) 
+[![tag](https://img.shields.io/github/tag/nyaruka/archiver.svg)](https://github.com/nyaruka/archiver/releases)
+[![Build Status](https://github.com/nyaruka/archiver/workflows/CI/badge.svg)](https://github.com/nyaruka/archiver/actions?query=workflow%3ACI) 
+[![codecov](https://codecov.io/gh/nyaruka/archiver/branch/main/graph/badge.svg)](https://codecov.io/gh/nyaruka/archiver) 
+[![Go Report Card](https://goreportcard.com/badge/github.com/nyaruka/archiver)](https://goreportcard.com/report/github.com/nyaruka/archiver) 
 
 Service for archiving old RapidPro/TextIt runs and messages. It interacts directly with the database 
 and writes archive files to S3.
@@ -24,7 +24,7 @@ The service uses a tiered configuration system, each option takes precendence ov
  3. Command line parameters
 
 We recommend running it with no changes to the configuration and no parameters, using only
-environment variables to configure it. You can use `% rp-archiver --help` to see a list of the
+environment variables to configure it. You can use `% archiver --help` to see a list of the
 environment variables and parameters and for more details on each option.
 
  * `ARCHIVER_DB`: URL describing how to connect to the database
