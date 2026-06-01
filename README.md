@@ -2,7 +2,6 @@
 
 [![tag](https://img.shields.io/github/tag/nyaruka/archiver.svg)](https://github.com/nyaruka/archiver/releases)
 [![Build Status](https://github.com/nyaruka/archiver/workflows/CI/badge.svg)](https://github.com/nyaruka/archiver/actions?query=workflow%3ACI) 
-[![codecov](https://codecov.io/gh/nyaruka/archiver/branch/main/graph/badge.svg)](https://codecov.io/gh/nyaruka/archiver) 
 [![Go Report Card](https://goreportcard.com/badge/github.com/nyaruka/archiver)](https://goreportcard.com/report/github.com/nyaruka/archiver) 
 
 Service for archiving old RapidPro/TextIt runs and messages. It interacts directly with the database 
