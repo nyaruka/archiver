@@ -1,0 +1,5 @@
+# supercronic crontab for the dev image (5-field cron, no user column).
+# Times are in the container's TZ (Etc/UTC by default — see Dockerfile).
+
+# run a daily archival pass at 06:00 UTC
+0 6 * * * /usr/local/bin/archiver
