@@ -1,0 +1,16 @@
+# Keep the build context small so dev rebuilds stay fast and unrelated edits
+# (e.g. a CHANGELOG bump) don't bust the COPY layer cache. The build only needs
+# go.mod/go.sum, the Go sources, and ./crontab.
+.git
+.github
+.devcontainer
+.vscode
+*.md
+LICENSE
+.gitignore
+.goreleaser.yaml
+dist/
+testdb.sql
+*.test
+*.out
+.DS_Store

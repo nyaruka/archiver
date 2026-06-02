@@ -22,9 +22,9 @@ RUN go build -o /usr/local/bin/archiver ./cmd/archiver
 
 # supercronic is a container-friendly cron: it runs in the foreground, logs to
 # stdout, and (unlike system cron) passes the container's env through to jobs.
-# go install is the simplest way to get it into a Go image — no version pinning
-# needed for a dev tool.
-RUN go install github.com/aptible/supercronic@latest
+# go install is the simplest way to get it into a Go image; pin a version so
+# the build stays reproducible and this layer caches.
+RUN go install github.com/aptible/supercronic@v0.2.46
 
 COPY crontab /etc/crontab
 ENV TZ=Etc/UTC
