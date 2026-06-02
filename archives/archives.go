@@ -726,6 +726,11 @@ func createArchives(ctx context.Context, rt *runtime.Runtime, org Org, archives 
 	failed := make([]*Archive, 0, 5)
 
 	for _, archive := range archives {
+		// stop building on shutdown rather than rapid-failing every remaining archive
+		if ctx.Err() != nil {
+			break
+		}
+
 		log.With("start_date", archive.StartDate, "end_date", archive.endDate(), "period", archive.Period, "archive_type", archive.ArchiveType).Debug("starting archive")
 		start := dates.Now()
 
@@ -759,6 +764,11 @@ func RollupOrgArchives(ctx context.Context, rt *runtime.Runtime, now time.Time, 
 
 	// build them from rollups
 	for _, archive := range archives {
+		// stop building on shutdown rather than rapid-failing every remaining rollup
+		if ctx.Err() != nil {
+			break
+		}
+
 		log := log.With("start_date", archive.StartDate)
 		start := dates.Now()
 
@@ -964,7 +974,7 @@ type orgResult struct {
 // ArchiveOrg grabs a per-org lock and archives that org's messages and runs. It returns ok=false
 // if the lock couldn't be grabbed or is already held by another task, in which case the org is skipped.
 // The lock is always released on the way out via defer, even if archiving panics or returns early.
-func ArchiveOrg(rt *runtime.Runtime, start time.Time, org Org) (orgResult, bool) {
+func ArchiveOrg(ctx context.Context, rt *runtime.Runtime, start time.Time, org Org) (orgResult, bool) {
 	log := slog.With("org_id", org.ID, "org_name", org.Name)
 
 	// grab a lock for this org so that overlapping archiver tasks don't archive the same org at once
@@ -990,14 +1000,16 @@ func ArchiveOrg(rt *runtime.Runtime, start time.Time, org Org) (orgResult, bool)
 		relCancel()
 	}()
 
-	// no single org should take more than 12 hours
-	ctx, cancel := context.WithTimeout(context.Background(), time.Hour*12)
+	// no single org should take more than 12 hours; derive from the parent ctx so a shutdown
+	// signal cancels in-flight work and the deferred lock release above still runs
+	ctx, cancel := context.WithTimeout(ctx, time.Hour*12)
 	defer cancel()
 
 	var res orgResult
 
 	msgDailiesCreated, msgDailiesFailed, msgMonthliesCreated, msgMonthliesFailed, _, err := archiveTypeForOrg(ctx, rt, start, org, MessageType)
-	if err != nil {
+	// a cancelled context here means we're shutting down, not a real failure — don't report it as an error
+	if err != nil && ctx.Err() == nil {
 		log.Error("error archiving org messages", "error", err, "archive_type", MessageType)
 	}
 	res.msgsRecordsArchived = countRecords(msgDailiesCreated)
@@ -1007,7 +1019,7 @@ func ArchiveOrg(rt *runtime.Runtime, start time.Time, org Org) (orgResult, bool)
 	res.msgsRollupsFailed = len(msgMonthliesFailed)
 
 	runDailiesCreated, runDailiesFailed, runMonthliesCreated, runMonthliesFailed, _, err := archiveTypeForOrg(ctx, rt, start, org, RunType)
-	if err != nil {
+	if err != nil && ctx.Err() == nil {
 		log.Error("error archiving org runs", "error", err, "archive_type", RunType)
 	}
 	res.runsRecordsArchived = countRecords(runDailiesCreated)
@@ -1020,12 +1032,12 @@ func ArchiveOrg(rt *runtime.Runtime, start time.Time, org Org) (orgResult, bool)
 }
 
 // ArchiveActiveOrgs fetches active orgs and archives messages and runs
-func ArchiveActiveOrgs(rt *runtime.Runtime) error {
+func ArchiveActiveOrgs(ctx context.Context, rt *runtime.Runtime) error {
 	start := dates.Now()
 
 	// get our active orgs
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	orgs, err := GetActiveOrgs(ctx, rt)
+	fetchCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	orgs, err := GetActiveOrgs(fetchCtx, rt)
 	cancel()
 
 	if err != nil {
@@ -1040,7 +1052,14 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 
 	// for each org, do our export
 	for _, org := range orgs {
-		res, ok := ArchiveOrg(rt, start, org)
+		// stop cleanly on a shutdown signal so the current org's lock releases via defer
+		// rather than lingering until its TTL after a hard kill
+		if ctx.Err() != nil {
+			slog.Info("shutdown requested, stopping further archival", "reason", ctx.Err(), "orgs_processed", org.ID)
+			break
+		}
+
+		res, ok := ArchiveOrg(ctx, rt, start, org)
 		if !ok {
 			continue
 		}
@@ -1078,8 +1097,9 @@ func ArchiveActiveOrgs(rt *runtime.Runtime) error {
 		cwatch.Datum("RollupsFailed", float64(totalRunsRollupsFailed), types.StandardUnitCount, runsDim),
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), time.Minute)
-	if err = rt.CW.Send(ctx, metrics...); err != nil {
+	// send metrics on a fresh context so they report even when we're shutting down
+	metricsCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	if err = rt.CW.Send(metricsCtx, metrics...); err != nil {
 		slog.Error("error sending metrics", "error", err)
 	}
 	cancel()

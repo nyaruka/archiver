@@ -554,9 +554,9 @@ func TestArchiveOrgRuns(t *testing.T) {
 }
 
 func TestArchiveActiveOrgs(t *testing.T) {
-	_, rt := setup(t)
+	ctx, rt := setup(t)
 
-	err := ArchiveActiveOrgs(rt)
+	err := ArchiveActiveOrgs(ctx, rt)
 	assert.NoError(t, err)
 
 }
@@ -579,7 +579,7 @@ func TestArchiveActiveOrgsSkipsLockedOrg(t *testing.T) {
 	require.NotEmpty(t, lock)
 	defer locker.Release(ctx, rt.VK, lock)
 
-	require.NoError(t, ArchiveActiveOrgs(rt))
+	require.NoError(t, ArchiveActiveOrgs(ctx, rt))
 
 	// the locked org should have been skipped, so its archive count is unchanged
 	var after int
