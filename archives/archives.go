@@ -735,6 +735,10 @@ func createArchives(ctx context.Context, rt *runtime.Runtime, org Org, archives 
 		start := dates.Now()
 
 		if err := createArchive(ctx, rt, archive); err != nil {
+			// a cancellation mid-build means we're shutting down, not a real failure — don't log or count it
+			if ctx.Err() != nil {
+				break
+			}
 			log.Error("error creating archive", "error", err)
 			failed = append(failed, archive)
 		} else {
@@ -773,6 +777,10 @@ func RollupOrgArchives(ctx context.Context, rt *runtime.Runtime, now time.Time, 
 		start := dates.Now()
 
 		if err := BuildRollupArchive(ctx, rt, archive, now, org, archiveType); err != nil {
+			// a cancellation mid-build means we're shutting down, not a real failure — don't log or count it
+			if ctx.Err() != nil {
+				break
+			}
 			log.Error("error building monthly archive", "error", err)
 			failed = append(failed, archive)
 			continue
@@ -781,6 +789,9 @@ func RollupOrgArchives(ctx context.Context, rt *runtime.Runtime, now time.Time, 
 		// only upload to S3 if there are records
 		if archive.RecordCount > 0 {
 			if err := UploadArchive(ctx, rt, archive); err != nil {
+				if ctx.Err() != nil {
+					break
+				}
 				log.Error("error writing archive to s3", "error", err)
 				failed = append(failed, archive)
 				continue
@@ -788,6 +799,9 @@ func RollupOrgArchives(ctx context.Context, rt *runtime.Runtime, now time.Time, 
 		}
 
 		if err := WriteArchiveToDB(ctx, rt.DB, archive); err != nil {
+			if ctx.Err() != nil {
+				break
+			}
 			log.Error("error writing record to db", "error", err)
 			failed = append(failed, archive)
 			continue
@@ -1018,6 +1032,11 @@ func ArchiveOrg(ctx context.Context, rt *runtime.Runtime, start time.Time, org O
 	res.msgsRollupsCreated = len(msgMonthliesCreated)
 	res.msgsRollupsFailed = len(msgMonthliesFailed)
 
+	// if we've been cancelled, skip the run pass rather than re-entering the DB helpers on a dead context
+	if ctx.Err() != nil {
+		return res, true
+	}
+
 	runDailiesCreated, runDailiesFailed, runMonthliesCreated, runMonthliesFailed, _, err := archiveTypeForOrg(ctx, rt, start, org, RunType)
 	if err != nil && ctx.Err() == nil {
 		log.Error("error archiving org runs", "error", err, "archive_type", RunType)
@@ -1055,7 +1074,7 @@ func ArchiveActiveOrgs(ctx context.Context, rt *runtime.Runtime) error {
 		// stop cleanly on a shutdown signal so the current org's lock releases via defer
 		// rather than lingering until its TTL after a hard kill
 		if ctx.Err() != nil {
-			slog.Info("shutdown requested, stopping further archival", "reason", ctx.Err(), "orgs_processed", org.ID)
+			slog.Info("shutdown requested, stopping further archival", "reason", ctx.Err(), "next_org_id", org.ID)
 			break
 		}
 

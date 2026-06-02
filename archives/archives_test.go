@@ -592,6 +592,39 @@ func TestArchiveActiveOrgsSkipsLockedOrg(t *testing.T) {
 	assert.Greater(t, otherCount, 0, "unlocked org should have been archived")
 }
 
+func TestArchiveOrgReleasesLockOnCancel(t *testing.T) {
+	ctx, rt := setup(t)
+
+	orgs, err := GetActiveOrgs(ctx, rt)
+	require.NoError(t, err)
+	org := orgs[1] // org 2 has archivable data
+
+	var before int
+	require.NoError(t, rt.DB.Get(&before, "SELECT count(*) FROM archives_archive WHERE org_id = $1", org.ID))
+
+	// cancel before archiving begins; ArchiveOrg should still grab the lock (grab uses a
+	// background context), attempt work, short-circuit on the dead context, and crucially
+	// release the lock via defer rather than leaving it to linger until its TTL
+	cancelledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	res, ok := ArchiveOrg(cancelledCtx, rt, time.Now(), org)
+	assert.True(t, ok, "org should have been locked and attempted, not skipped")
+	assert.Equal(t, orgResult{}, res, "a cancelled run should archive nothing and report no failures")
+
+	// nothing should have been written for a cancelled run
+	var after int
+	require.NoError(t, rt.DB.Get(&after, "SELECT count(*) FROM archives_archive WHERE org_id = $1", org.ID))
+	assert.Equal(t, before, after, "a cancelled run should not create archives")
+
+	// the lock should have been released: we can immediately grab it again
+	locker := locks.NewLocker(fmt.Sprintf("archiver:lock:org:%d", org.ID), time.Hour)
+	lock, err := locker.Grab(ctx, rt.VK, 0)
+	require.NoError(t, err)
+	assert.NotEmpty(t, lock, "lock should have been released after a cancelled archival, not lingering until TTL")
+	require.NoError(t, locker.Release(ctx, rt.VK, lock))
+}
+
 func TestDeleteRolledUpDailyArchives(t *testing.T) {
 	ctx, rt := setup(t)
 
