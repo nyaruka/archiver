@@ -5,7 +5,9 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -137,7 +139,12 @@ func main() {
 	}
 	logger.Info("cloudwatch service ok", "state", "starting")
 
-	if err := archives.ArchiveActiveOrgs(rt); err != nil {
+	// trap SIGTERM/SIGINT so a stop signal (ECS task stop, deploy, spot interruption) cancels
+	// in-flight work and lets per-org locks release via defer, instead of hard-killing the process
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := archives.ArchiveActiveOrgs(ctx, rt); err != nil {
 		fatal("error archiving", "error", err)
 	}
 
