@@ -1,3 +1,7 @@
+v26.1.1 (2026-06-04)
+-------------------------
+ * Remove goreleaser; releases are now built as a Docker image from git tags
+
 v26.1.0 (2026-06-04)
 -------------------------
  * First release
