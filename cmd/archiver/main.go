@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	// https://goreleaser.com/cookbooks/using-main.version
+	// overridden at build time via -ldflags "-X main.version=... -X main.date=..."
 	version = "dev"
 	date    = "unknown"
 )
