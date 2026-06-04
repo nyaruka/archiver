@@ -1,20 +1,12 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*~
-.vscode
-dist/
-*.DS_store
-*.py
-*.pyc
-
-# Test binary, build with `go test -c`
-*.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
+.DS_Store
+.devcontainer
+.claude/
+CLAUDE.md
+coverage.text
 deploy
-fabfile.py
+fabfile.*
+
+/docs/*
+/docs
+/archiver
+
