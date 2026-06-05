@@ -5,10 +5,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
-	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/archiver/v26/runtime"
+	"github.com/nyaruka/gocommon/dates"
 	"github.com/vinovest/sqlx"
 )
 
@@ -118,23 +119,9 @@ func DeleteArchivedRuns(ctx context.Context, rt *runtime.Runtime, archive *Archi
 	)
 	log.Info("deleting runs")
 
-	// only verify S3 file if archive was uploaded (non-empty archives)
-	if archive.isUploaded() {
-		// first things first, make sure our file is correct on S3
-		bucket, key := archive.location()
-		s3Size, s3Hash, err := GetS3FileInfo(outer, rt.S3, bucket, key)
-		if err != nil {
-			return err
-		}
-
-		if s3Size != archive.Size {
-			return fmt.Errorf("archive size: %d and s3 size: %d do not match", archive.Size, s3Size)
-		}
-
-		// if S3 hash is MD5 then check against archive hash
-		if rt.Config.CheckS3Hashes && archive.Size <= maxSingleUploadBytes && s3Hash != string(archive.Hash) {
-			return fmt.Errorf("archive md5: %s and s3 etag: %s do not match", archive.Hash, s3Hash)
-		}
+	// make sure our archive file is still correct on S3 before we delete anything
+	if err := verifyUploadedArchive(outer, rt, archive); err != nil {
+		return err
 	}
 
 	// ok, archive file looks good, let's build up our list of run ids, this may be big but we are int64s so shouldn't be too big
@@ -162,7 +149,7 @@ func DeleteArchivedRuns(ctx context.Context, rt *runtime.Runtime, archive *Archi
 	}
 
 	// ok, delete our runs in batches, we do this in transactions as it spans a few different queries
-	for _, idBatch := range chunkIDs(runIDs, deleteTransactionSize) {
+	for idBatch := range slices.Chunk(runIDs, deleteTransactionSize) {
 		// no single batch should take more than a few minutes
 		ctx, cancel := context.WithTimeout(ctx, time.Minute*15)
 		defer cancel()
@@ -201,77 +188,16 @@ const selectOldOrgFlowStarts = `
   WHERE s.org_id = $1 AND s.created_on < $2 AND NOT EXISTS (SELECT 1 FROM flows_flowrun WHERE start_id = s.id)
   LIMIT 1000000;`
 
-// DeleteFlowStarts deletes all starts older than 90 days for the passed in org which have no associated runs
+// DeleteFlowStarts deletes all starts older than the org's retention period which have no associated runs
 func DeleteFlowStarts(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org) error {
-	start := dates.Now()
-	threshhold := now.AddDate(0, 0, -org.RetentionPeriod)
-
-	rows, err := rt.DB.QueryxContext(ctx, selectOldOrgFlowStarts, org.ID, threshhold)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	count := 0
-	for rows.Next() {
-		if count == 0 {
-			slog.Info("deleting starts", "org_id", org.ID)
-		}
-
-		// been deleting this org more than an hour? thats enough for today, exit out
-		if dates.Since(start) > time.Hour {
-			break
-		}
-
-		var startID int64
-		if err := rows.Scan(&startID); err != nil {
-			return fmt.Errorf("unable to get start id: %w", err)
-		}
-
-		// we delete starts in a transaction per start
-		tx, err := rt.DB.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("error starting transaction while deleting start: %d: %w", startID, err)
-		}
-
-		// delete contacts M2M
-		_, err = tx.Exec(`DELETE from flows_flowstart_contacts WHERE flowstart_id = $1`, startID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("error deleting related contacts for start: %d: %w", startID, err)
-		}
-
-		// delete groups M2M
-		_, err = tx.Exec(`DELETE from flows_flowstart_groups WHERE flowstart_id = $1`, startID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("error deleting related groups for start: %d: %w", startID, err)
-		}
-
-		// delete counts
-		_, err = tx.Exec(`DELETE from flows_flowstartcount WHERE start_id = $1`, startID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("error deleting counts for start: %d: %w", startID, err)
-		}
-
-		// finally, delete our start
-		_, err = tx.Exec(`DELETE from flows_flowstart WHERE id = $1`, startID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("error deleting start: %d: %w", startID, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("error deleting start: %d: %w", startID, err)
-		}
-
-		count++
-	}
-
-	if count > 0 {
-		slog.Info("completed deleting starts", "elapsed", dates.Since(start), "count", count, "org_id", org.ID)
-	}
-
-	return nil
+	return deleteOrphans(ctx, rt, now, org, orphanDeletion{
+		what:      "start",
+		selectSQL: selectOldOrgFlowStarts,
+		childSQL: []childDelete{
+			{"contacts", `DELETE from flows_flowstart_contacts WHERE flowstart_id = $1`},
+			{"groups", `DELETE from flows_flowstart_groups WHERE flowstart_id = $1`},
+			{"counts", `DELETE from flows_flowstartcount WHERE start_id = $1`},
+		},
+		parentSQL: `DELETE from flows_flowstart WHERE id = $1`,
+	})
 }

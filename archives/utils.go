@@ -3,8 +3,11 @@ package archives
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/nyaruka/archiver/v26/runtime"
+	"github.com/nyaruka/gocommon/dates"
 	"github.com/vinovest/sqlx"
 )
 
@@ -20,6 +23,83 @@ func executeInQuery(ctx context.Context, tx *sqlx.Tx, query string, ids []int64)
 		tx.Rollback()
 	}
 	return err
+}
+
+// childDelete is a statement deleting one category of a parent's dependent rows; the label
+// identifies it in error messages and the sql takes the parent id as $1.
+type childDelete struct {
+	label string
+	sql   string
+}
+
+// orphanDeletion describes a category of orphaned parent rows to delete (e.g. broadcasts with no
+// messages, flow starts with no runs) along with the dependent rows that must be removed first.
+type orphanDeletion struct {
+	what      string        // singular noun used in logs and errors, e.g. "broadcast"
+	selectSQL string        // selects the ids of orphaned parents; takes ($1 org id, $2 threshold)
+	childSQL  []childDelete // statements deleting dependent rows, run before the parent
+	parentSQL string        // statement deleting the parent row; takes the parent id as $1
+}
+
+// deleteOrphans deletes orphaned parent rows older than the org's retention period, one transaction
+// per parent (parent plus its dependent rows), stopping after an hour so a single org can't
+// monopolise a run.
+func deleteOrphans(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, d orphanDeletion) error {
+	start := dates.Now()
+	threshold := now.AddDate(0, 0, -org.RetentionPeriod)
+
+	rows, err := rt.DB.QueryxContext(ctx, d.selectSQL, org.ID, threshold)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	count := 0
+	for rows.Next() {
+		if count == 0 {
+			slog.Info("deleting "+d.what+"s", "org_id", org.ID)
+		}
+
+		// been deleting this org more than an hour? that's enough for today, exit out
+		if dates.Since(start) > time.Hour {
+			break
+		}
+
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("unable to get %s id: %w", d.what, err)
+		}
+
+		// delete each parent and its dependent rows in its own transaction
+		tx, err := rt.DB.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("error starting transaction while deleting %s: %d: %w", d.what, id, err)
+		}
+
+		for _, child := range d.childSQL {
+			if _, err := tx.Exec(child.sql, id); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("error deleting %s for %s: %d: %w", child.label, d.what, id, err)
+			}
+		}
+
+		if _, err := tx.Exec(d.parentSQL, id); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("error deleting %s: %d: %w", d.what, id, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("error deleting %s: %d: %w", d.what, id, err)
+		}
+
+		count++
+	}
+
+	if count > 0 {
+		slog.Info("completed deleting "+d.what+"s", "elapsed", dates.Since(start), "count", count, "org_id", org.ID)
+	}
+
+	return nil
 }
 
 // counts the records in the given archives
@@ -44,18 +124,4 @@ func removeDuplicates(as []*Archive) []*Archive {
 		}
 	}
 	return unique
-}
-
-// chunks a slice of in64 IDs
-func chunkIDs(ids []int64, size int) [][]int64 {
-	chunks := make([][]int64, 0, len(ids)/size+1)
-
-	for i := 0; i < len(ids); i += size {
-		end := i + size
-		if end > len(ids) {
-			end = len(ids)
-		}
-		chunks = append(chunks, ids[i:end])
-	}
-	return chunks
 }

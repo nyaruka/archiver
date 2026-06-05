@@ -13,9 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	_ "github.com/lib/pq"
+	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/nyaruka/gocommon/aws/cwatch"
 	"github.com/nyaruka/gocommon/dbutil/assertdb"
-	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/nyaruka/vkutil"
 	"github.com/nyaruka/vkutil/locks"
 	"github.com/stretchr/testify/assert"
@@ -344,8 +344,11 @@ func TestArchiveOrgMessages(t *testing.T) {
 
 	assertCount(t, rt.DB, 4, `SELECT count(*) from msgs_broadcast WHERE org_id = $1`, 2)
 
-	dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, deleted, err := archiveTypeForOrg(ctx, rt, now, orgs[1], MessageType)
+	res, err := archiveTypeForOrg(ctx, rt, now, orgs[1], MessageType)
 	assert.NoError(t, err)
+	dailiesCreated, dailiesFailed := res.dailiesCreated, res.dailiesFailed
+	monthliesCreated, monthliesFailed := res.monthliesCreated, res.monthliesFailed
+	deleted := res.dailiesPurged
 
 	assert.Equal(t, 61, len(dailiesCreated))
 	assertArchive(t, dailiesCreated[0], time.Date(2017, 8, 10, 0, 0, 0, 0, time.UTC), DayPeriod, 0, 0, "")
@@ -481,8 +484,9 @@ func TestArchiveOrgRuns(t *testing.T) {
 	assert.NoError(t, err)
 	now := time.Date(2018, 1, 8, 12, 30, 0, 0, time.UTC)
 
-	dailiesCreated, _, monthliesCreated, _, deleted, err := archiveTypeForOrg(ctx, rt, now, orgs[2], RunType)
+	res, err := archiveTypeForOrg(ctx, rt, now, orgs[2], RunType)
 	assert.NoError(t, err)
+	dailiesCreated, monthliesCreated, deleted := res.dailiesCreated, res.monthliesCreated, res.dailiesPurged
 
 	assert.Equal(t, 10, len(dailiesCreated))
 	assertArchive(t, dailiesCreated[0], time.Date(2017, 10, 1, 0, 0, 0, 0, time.UTC), DayPeriod, 0, 0, "")
@@ -540,8 +544,10 @@ func TestArchiveOrgRuns(t *testing.T) {
 	assert.Equal(t, 1, count)
 
 	// org 2 will create backfilled monthlies for 2017-08 and 2017-09.. and then only dailies for 2017-10-01 to 2017-10-10
-	dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, _, err := archiveTypeForOrg(ctx, rt, now, orgs[1], RunType)
+	res, err = archiveTypeForOrg(ctx, rt, now, orgs[1], RunType)
 	assert.NoError(t, err)
+	dailiesCreated, dailiesFailed := res.dailiesCreated, res.dailiesFailed
+	monthliesCreated, monthliesFailed := res.monthliesCreated, res.monthliesFailed
 
 	assert.Equal(t, 10, len(dailiesCreated))
 	assertArchive(t, dailiesCreated[0], time.Date(2017, 10, 1, 0, 0, 0, 0, time.UTC), DayPeriod, 0, 0, "")
@@ -635,9 +641,9 @@ func TestDeleteRolledUpDailyArchives(t *testing.T) {
 	org := orgs[1]
 
 	// Step 1: Create daily archives (monthlies are created via RollupOrgArchives, not CreateOrgArchives unless it's a backfill)
-	dailiesCreated, _, _, _, err := CreateOrgArchives(ctx, rt, now, org, MessageType)
+	created, err := CreateOrgArchives(ctx, rt, now, org, MessageType)
 	assert.NoError(t, err)
-	assert.Greater(t, len(dailiesCreated), 0, "should have created daily archives")
+	assert.Greater(t, len(created.dailiesCreated), 0, "should have created daily archives")
 
 	// Step 2: Roll up daily archives into monthlies
 	rollupsCreated, _, err := RollupOrgArchives(ctx, rt, now, org, MessageType)

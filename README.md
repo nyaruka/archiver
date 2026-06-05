@@ -16,7 +16,7 @@ AWS ECS Scheduled Task driven by EventBridge, etc.).
 
 ## Configuration
 
-The service uses a tiered configuration system, each option takes precendence over the ones above it:
+The service uses a tiered configuration system, each option takes precedence over the ones above it:
 
  1. The configuration file
  2. Environment variables starting with `ARCHIVER_` 

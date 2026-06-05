@@ -12,10 +12,10 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	_ "github.com/lib/pq"
-	"github.com/nyaruka/ezconf"
-	"github.com/nyaruka/gocommon/aws/cwatch"
 	"github.com/nyaruka/archiver/v26/archives"
 	"github.com/nyaruka/archiver/v26/runtime"
+	"github.com/nyaruka/ezconf"
+	"github.com/nyaruka/gocommon/aws/cwatch"
 	"github.com/nyaruka/vkutil"
 	slogmulti "github.com/samber/slog-multi"
 	slogsentry "github.com/samber/slog-sentry/v2"
