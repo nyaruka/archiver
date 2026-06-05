@@ -219,10 +219,10 @@ func DeleteBroadcasts(ctx context.Context, rt *runtime.Runtime, now time.Time, o
 	return deleteOrphans(ctx, rt, now, org, orphanDeletion{
 		what:      "broadcast",
 		selectSQL: sqlSelectOldOrgBroadcasts,
-		childSQL: []string{
-			`DELETE from msgs_broadcast_contacts WHERE broadcast_id = $1`,
-			`DELETE from msgs_broadcast_groups WHERE broadcast_id = $1`,
-			`DELETE from msgs_broadcastmsgcount WHERE broadcast_id = $1`,
+		childSQL: []childDelete{
+			{"contacts", `DELETE from msgs_broadcast_contacts WHERE broadcast_id = $1`},
+			{"groups", `DELETE from msgs_broadcast_groups WHERE broadcast_id = $1`},
+			{"counts", `DELETE from msgs_broadcastmsgcount WHERE broadcast_id = $1`},
 		},
 		parentSQL: `DELETE from msgs_broadcast WHERE id = $1`,
 	})

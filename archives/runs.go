@@ -193,10 +193,10 @@ func DeleteFlowStarts(ctx context.Context, rt *runtime.Runtime, now time.Time, o
 	return deleteOrphans(ctx, rt, now, org, orphanDeletion{
 		what:      "start",
 		selectSQL: selectOldOrgFlowStarts,
-		childSQL: []string{
-			`DELETE from flows_flowstart_contacts WHERE flowstart_id = $1`,
-			`DELETE from flows_flowstart_groups WHERE flowstart_id = $1`,
-			`DELETE from flows_flowstartcount WHERE start_id = $1`,
+		childSQL: []childDelete{
+			{"contacts", `DELETE from flows_flowstart_contacts WHERE flowstart_id = $1`},
+			{"groups", `DELETE from flows_flowstart_groups WHERE flowstart_id = $1`},
+			{"counts", `DELETE from flows_flowstartcount WHERE start_id = $1`},
 		},
 		parentSQL: `DELETE from flows_flowstart WHERE id = $1`,
 	})

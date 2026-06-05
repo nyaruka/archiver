@@ -360,9 +360,10 @@ func BuildRollupArchive(ctx context.Context, rt *runtime.Runtime, monthlyArchive
 		return fmt.Errorf("error creating temp file: %s: %w", filename, err)
 	}
 
+	success := false
 	defer func() {
-		// we only set the archive filename when we succeed; on any early return remove the temp file
-		if monthlyArchive.ArchiveFile == "" {
+		// remove the temp file on any early return; only a fully successful build keeps it
+		if !success {
 			if err := os.Remove(file.Name()); err != nil {
 				slog.Error("error cleaning up rollup archive file", "error", err, "filename", file.Name())
 			}
@@ -449,6 +450,7 @@ func BuildRollupArchive(ctx context.Context, rt *runtime.Runtime, monthlyArchive
 	monthlyArchive.NeedsDeletion = false
 	monthlyArchive.ArchiveFile = file.Name()
 
+	success = true
 	return nil
 }
 
@@ -498,9 +500,10 @@ func CreateArchiveFile(ctx context.Context, db *sqlx.DB, archive *Archive, archi
 		return fmt.Errorf("error creating temp file: %s: %w", filename, err)
 	}
 
+	success := false
 	defer func() {
-		// we only set the archive filename when we succeed
-		if archive.ArchiveFile == "" {
+		// remove the temp file on any early return; only a fully successful build keeps it
+		if !success {
 			if err := os.Remove(file.Name()); err != nil {
 				log.Error("error cleaning up archive file", "error", err, "filename", file.Name())
 			}
@@ -552,6 +555,7 @@ func CreateArchiveFile(ctx context.Context, db *sqlx.DB, archive *Archive, archi
 
 	log.Debug("completed writing archive file", "record_count", recordCount, "filename", file.Name(), "file_size", archive.Size, "file_hash", archive.Hash, "elapsed", dates.Since(start))
 
+	success = true
 	return nil
 }
 
@@ -666,8 +670,8 @@ func DeleteArchiveTempFile(archive *Archive) error {
 	return nil
 }
 
-// Stats holds archiving counts for a single archive type, summable across orgs via Add.
-type Stats struct {
+// archiveStats holds archiving counts for a single archive type, summable across orgs via add.
+type archiveStats struct {
 	RecordsArchived int
 	ArchivesCreated int
 	ArchivesFailed  int
@@ -675,8 +679,8 @@ type Stats struct {
 	RollupsFailed   int
 }
 
-// Add accumulates another Stats into this one.
-func (s *Stats) Add(o Stats) {
+// add accumulates another archiveStats into this one.
+func (s *archiveStats) add(o archiveStats) {
 	s.RecordsArchived += o.RecordsArchived
 	s.ArchivesCreated += o.ArchivesCreated
 	s.ArchivesFailed += o.ArchivesFailed
@@ -694,8 +698,8 @@ type archiveResults struct {
 }
 
 // stats summarizes the results into counts for metrics reporting.
-func (r archiveResults) stats() Stats {
-	return Stats{
+func (r archiveResults) stats() archiveStats {
+	return archiveStats{
 		RecordsArchived: countRecords(r.dailiesCreated),
 		ArchivesCreated: len(r.dailiesCreated),
 		ArchivesFailed:  len(r.dailiesFailed),
@@ -1014,8 +1018,8 @@ func archiveTypeForOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, 
 
 // orgResult holds the per-org archiving stats for messages and runs
 type orgResult struct {
-	msgs Stats
-	runs Stats
+	msgs archiveStats
+	runs archiveStats
 }
 
 // ArchiveOrg grabs a per-org lock and archives that org's messages and runs. It returns ok=false
@@ -1088,7 +1092,7 @@ func ArchiveActiveOrgs(ctx context.Context, rt *runtime.Runtime) error {
 		return fmt.Errorf("error getting active orgs: %w", err)
 	}
 
-	var msgs, runs Stats
+	var msgs, runs archiveStats
 
 	// for each org, do our export
 	for _, org := range orgs {
@@ -1104,8 +1108,8 @@ func ArchiveActiveOrgs(ctx context.Context, rt *runtime.Runtime) error {
 			continue
 		}
 
-		msgs.Add(res.msgs)
-		runs.Add(res.runs)
+		msgs.add(res.msgs)
+		runs.add(res.runs)
 	}
 
 	timeTaken := dates.Now().Sub(start)

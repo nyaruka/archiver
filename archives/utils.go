@@ -25,13 +25,20 @@ func executeInQuery(ctx context.Context, tx *sqlx.Tx, query string, ids []int64)
 	return err
 }
 
+// childDelete is a statement deleting one category of a parent's dependent rows; the label
+// identifies it in error messages and the sql takes the parent id as $1.
+type childDelete struct {
+	label string
+	sql   string
+}
+
 // orphanDeletion describes a category of orphaned parent rows to delete (e.g. broadcasts with no
 // messages, flow starts with no runs) along with the dependent rows that must be removed first.
 type orphanDeletion struct {
-	what      string   // singular noun used in logs and errors, e.g. "broadcast"
-	selectSQL string   // selects the ids of orphaned parents; takes ($1 org id, $2 threshold)
-	childSQL  []string // statements deleting dependent rows, run before the parent; each takes the parent id as $1
-	parentSQL string   // statement deleting the parent row; takes the parent id as $1
+	what      string        // singular noun used in logs and errors, e.g. "broadcast"
+	selectSQL string        // selects the ids of orphaned parents; takes ($1 org id, $2 threshold)
+	childSQL  []childDelete // statements deleting dependent rows, run before the parent
+	parentSQL string        // statement deleting the parent row; takes the parent id as $1
 }
 
 // deleteOrphans deletes orphaned parent rows older than the org's retention period, one transaction
@@ -69,10 +76,10 @@ func deleteOrphans(ctx context.Context, rt *runtime.Runtime, now time.Time, org 
 			return fmt.Errorf("error starting transaction while deleting %s: %d: %w", d.what, id, err)
 		}
 
-		for _, childSQL := range d.childSQL {
-			if _, err := tx.Exec(childSQL, id); err != nil {
+		for _, child := range d.childSQL {
+			if _, err := tx.Exec(child.sql, id); err != nil {
 				tx.Rollback()
-				return fmt.Errorf("error deleting dependent rows for %s: %d: %w", d.what, id, err)
+				return fmt.Errorf("error deleting %s for %s: %d: %w", child.label, d.what, id, err)
 			}
 		}
 
