@@ -3,11 +3,9 @@
 [![tag](https://img.shields.io/github/tag/nyaruka/archiver.svg)](https://github.com/nyaruka/archiver/releases)
 [![Build Status](https://github.com/nyaruka/archiver/workflows/CI/badge.svg)](https://github.com/nyaruka/archiver/actions?query=workflow%3ACI) 
 
-Service for archiving old RapidPro/TextIt runs and messages. It interacts directly with the database and writes archive files to S3.
+Task for archiving old [RapidPro](https://app.rapidpro.io)/[TextIt](https://textit.com) runs and messages. It interacts directly with the database and writes archive files to S3.
 
-## Operating model
-
-Archiver runs a single archival pass and then exits. Its exit code is meaningful: `0` on success,
+It runs a single archival pass and then exits. The exit code is meaningful: `0` on success,
 non-zero if any initialization step or the archival itself failed. It does not schedule itself —
 run it on whatever cadence you need from an external scheduler (cron, a Kubernetes CronJob, an
 AWS ECS Scheduled Task driven by EventBridge, etc).
