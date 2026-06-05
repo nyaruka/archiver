@@ -5,10 +5,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
-	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/archiver/v26/runtime"
+	"github.com/nyaruka/gocommon/dates"
 	"github.com/vinovest/sqlx"
 )
 
@@ -130,23 +131,9 @@ func DeleteArchivedMessages(ctx context.Context, rt *runtime.Runtime, archive *A
 	)
 	log.Info("deleting messages")
 
-	// only verify S3 file if archive was uploaded (non-empty archives)
-	if archive.isUploaded() {
-		// first things first, make sure our file is correct on S3
-		bucket, key := archive.location()
-		s3Size, s3Hash, err := GetS3FileInfo(outer, rt.S3, bucket, key)
-		if err != nil {
-			return err
-		}
-
-		if s3Size != archive.Size {
-			return fmt.Errorf("archive size: %d and s3 size: %d do not match", archive.Size, s3Size)
-		}
-
-		// if S3 hash is MD5 then check against archive hash
-		if rt.Config.CheckS3Hashes && archive.Size <= maxSingleUploadBytes && s3Hash != string(archive.Hash) {
-			return fmt.Errorf("archive md5: %s and s3 etag: %s do not match", archive.Hash, s3Hash)
-		}
+	// make sure our archive file is still correct on S3 before we delete anything
+	if err := verifyUploadedArchive(outer, rt, archive); err != nil {
+		return err
 	}
 
 	// ok, archive file looks good, let's build up our list of message ids, this may be big but we are int64s so shouldn't be too big
@@ -183,7 +170,7 @@ func DeleteArchivedMessages(ctx context.Context, rt *runtime.Runtime, archive *A
 	}
 
 	// ok, delete our messages in batches, we do this in transactions as it spans a few different queries
-	for _, idBatch := range chunkIDs(msgIDs, deleteTransactionSize) {
+	for idBatch := range slices.Chunk(msgIDs, deleteTransactionSize) {
 		// no single batch should take more than a few minutes
 		ctx, cancel := context.WithTimeout(ctx, time.Minute*15)
 		defer cancel()
@@ -227,78 +214,16 @@ SELECT id
  WHERE b.org_id = $1 AND b.created_on < $2 AND b.schedule_id IS NULL AND b.is_active AND NOT EXISTS (SELECT 1 FROM msgs_msg WHERE broadcast_id = b.id)
  LIMIT 1000000;`
 
-// DeleteBroadcasts deletes all broadcasts older than 90 days for the passed in org which have no associated messages
+// DeleteBroadcasts deletes all broadcasts older than the org's retention period which have no associated messages
 func DeleteBroadcasts(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org) error {
-	start := dates.Now()
-	threshhold := now.AddDate(0, 0, -org.RetentionPeriod)
-
-	rows, err := rt.DB.QueryxContext(ctx, sqlSelectOldOrgBroadcasts, org.ID, threshhold)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	count := 0
-	for rows.Next() {
-		if count == 0 {
-			slog.Info("deleting broadcasts", "org_id", org.ID)
-
-		}
-
-		// been deleting this org more than an hour? thats enough for today, exit out
-		if dates.Since(start) > time.Hour {
-			break
-		}
-
-		var broadcastID int64
-		if err := rows.Scan(&broadcastID); err != nil {
-			return fmt.Errorf("unable to get broadcast id: %w", err)
-		}
-
-		// we delete broadcasts in a transaction per broadcast
-		tx, err := rt.DB.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("error starting transaction while deleting broadcast: %d: %w", broadcastID, err)
-		}
-
-		// delete contacts M2M
-		_, err = tx.Exec(`DELETE from msgs_broadcast_contacts WHERE broadcast_id = $1`, broadcastID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("error deleting related contacts for broadcast: %d: %w", broadcastID, err)
-		}
-
-		// delete groups M2M
-		_, err = tx.Exec(`DELETE from msgs_broadcast_groups WHERE broadcast_id = $1`, broadcastID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("error deleting related groups for broadcast: %d: %w", broadcastID, err)
-		}
-
-		// delete counts associated with this broadcast
-		_, err = tx.Exec(`DELETE from msgs_broadcastmsgcount WHERE broadcast_id = $1`, broadcastID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("error deleting counts for broadcast: %d: %w", broadcastID, err)
-		}
-
-		// finally, delete our broadcast
-		_, err = tx.Exec(`DELETE from msgs_broadcast WHERE id = $1`, broadcastID)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("error deleting broadcast: %d: %w", broadcastID, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("error deleting broadcast: %d: %w", broadcastID, err)
-		}
-
-		count++
-	}
-
-	if count > 0 {
-		slog.Info("completed deleting broadcasts", "elapsed", dates.Since(start), "count", count, "org_id", org.ID)
-	}
-
-	return nil
+	return deleteOrphans(ctx, rt, now, org, orphanDeletion{
+		what:      "broadcast",
+		selectSQL: sqlSelectOldOrgBroadcasts,
+		childSQL: []string{
+			`DELETE from msgs_broadcast_contacts WHERE broadcast_id = $1`,
+			`DELETE from msgs_broadcast_groups WHERE broadcast_id = $1`,
+			`DELETE from msgs_broadcastmsgcount WHERE broadcast_id = $1`,
+		},
+		parentSQL: `DELETE from msgs_broadcast WHERE id = $1`,
+	})
 }

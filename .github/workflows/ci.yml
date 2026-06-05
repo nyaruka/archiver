@@ -32,5 +32,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Check formatting
+        run: test -z "$(gofmt -l .)" || { echo "These files need gofmt:"; gofmt -l .; exit 1; }
+
+      - name: Vet
+        run: go vet ./...
+
       - name: Run tests
         run: go test -p=1 ./...

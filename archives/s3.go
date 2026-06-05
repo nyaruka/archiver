@@ -17,9 +17,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
 	"github.com/aws/smithy-go/transport/http"
+	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/nyaruka/gocommon/aws/s3x"
 	"github.com/nyaruka/null/v3"
-	"github.com/nyaruka/archiver/v26/runtime"
 )
 
 // any file over this needs to be uploaded in chunks
@@ -124,6 +124,33 @@ func GetS3FileInfo(ctx context.Context, s3Client *s3x.Service, bucket, key strin
 	etag := strings.Trim(*head.ETag, `"`)
 
 	return *head.ContentLength, etag, nil
+}
+
+// verifyUploadedArchive checks that an uploaded archive's S3 object still matches the recorded size
+// and, for single-part uploads with MD5 etags, its hash — before its database records are deleted.
+// Empty archives that were never uploaded have nothing to verify and are treated as valid.
+func verifyUploadedArchive(ctx context.Context, rt *runtime.Runtime, archive *Archive) error {
+	if !archive.isUploaded() {
+		return nil
+	}
+
+	// first things first, make sure our file is correct on S3
+	bucket, key := archive.location()
+	s3Size, s3Hash, err := GetS3FileInfo(ctx, rt.S3, bucket, key)
+	if err != nil {
+		return err
+	}
+
+	if s3Size != archive.Size {
+		return fmt.Errorf("archive size: %d and s3 size: %d do not match", archive.Size, s3Size)
+	}
+
+	// if S3 hash is MD5 then check against archive hash
+	if rt.Config.CheckS3Hashes && archive.Size <= maxSingleUploadBytes && s3Hash != string(archive.Hash) {
+		return fmt.Errorf("archive md5: %s and s3 etag: %s do not match", archive.Hash, s3Hash)
+	}
+
+	return nil
 }
 
 // GetS3File return an io.ReadCloser for the passed in bucket and path

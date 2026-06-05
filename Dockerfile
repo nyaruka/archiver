@@ -19,7 +19,13 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN go build -o /usr/local/bin/archiver ./cmd/archiver
+
+# version/date are stamped into the binary via ldflags. Pass the git tag at build time
+# with --build-arg VERSION=$(git describe --tags) --build-arg RELEASED=$(date -u +%Y-%m-%d);
+# the defaults match the in-code fallbacks so a plain `docker build` still works.
+ARG VERSION=dev
+ARG RELEASED=unknown
+RUN go build -ldflags "-X main.version=${VERSION} -X main.date=${RELEASED}" -o /usr/local/bin/archiver ./cmd/archiver
 
 # supercronic is a container-friendly cron: it runs in the foreground, logs to
 # stdout, and (unlike system cron) passes the container's env through to jobs.

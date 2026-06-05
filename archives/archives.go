@@ -17,11 +17,11 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	"github.com/lib/pq"
+	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/nyaruka/gocommon/aws/cwatch"
 	"github.com/nyaruka/gocommon/dates"
 	"github.com/nyaruka/gocommon/uuids"
 	"github.com/nyaruka/null/v3"
-	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/nyaruka/vkutil/locks"
 	"github.com/vinovest/sqlx"
 )
@@ -35,9 +35,6 @@ const (
 
 	// MessageType for message archives
 	MessageType = ArchiveType("message")
-
-	// SessionType for session archives
-	SessionType = ArchiveType("session")
 )
 
 // ArchivePeriod is the period of data in the archive
@@ -247,7 +244,7 @@ UNION DISTINCT
 LEFT JOIN curr_archives ON curr_archives.start_date = month_days.missing_day
     WHERE curr_archives.start_date IS NULL`
 
-// GetMissingDailyArchivesForDateRange returns all them missing daily archives between the two passed in date ranges
+// GetMissingDailyArchivesForDateRange returns all the missing daily archives between the two passed in date ranges
 func GetMissingDailyArchivesForDateRange(ctx context.Context, db *sqlx.DB, startDate time.Time, endDate time.Time, org Org, archiveType ArchiveType) ([]*Archive, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
@@ -293,7 +290,7 @@ LEFT JOIN curr_archives ON curr_archives.start_date = month_days.missing_month
     WHERE curr_archives.start_date IS NULL
 `
 
-// GetMissingMonthlyArchives gets which montly archives are currently missing for this org
+// GetMissingMonthlyArchives gets which monthly archives are currently missing for this org
 func GetMissingMonthlyArchives(ctx context.Context, db *sqlx.DB, now time.Time, org Org, archiveType ArchiveType) ([]*Archive, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 	defer cancel()
@@ -362,6 +359,16 @@ func BuildRollupArchive(ctx context.Context, rt *runtime.Runtime, monthlyArchive
 	if err != nil {
 		return fmt.Errorf("error creating temp file: %s: %w", filename, err)
 	}
+
+	defer func() {
+		// we only set the archive filename when we succeed; on any early return remove the temp file
+		if monthlyArchive.ArchiveFile == "" {
+			if err := os.Remove(file.Name()); err != nil {
+				slog.Error("error cleaning up rollup archive file", "error", err, "filename", file.Name())
+			}
+		}
+	}()
+
 	writerHash := md5.New()
 	gzWriter := gzip.NewWriter(io.MultiWriter(file, writerHash))
 	writer := bufio.NewWriter(gzWriter)
@@ -418,8 +425,6 @@ func BuildRollupArchive(ctx context.Context, rt *runtime.Runtime, monthlyArchive
 		recordCount += daily.RecordCount
 	}
 
-	monthlyArchive.ArchiveFile = file.Name()
-
 	if err := writer.Flush(); err != nil {
 		return err
 	}
@@ -442,6 +447,7 @@ func BuildRollupArchive(ctx context.Context, rt *runtime.Runtime, monthlyArchive
 	monthlyArchive.BuildTime = int(dates.Since(start) / time.Millisecond)
 	monthlyArchive.Dailies = dailies
 	monthlyArchive.NeedsDeletion = false
+	monthlyArchive.ArchiveFile = file.Name()
 
 	return nil
 }
@@ -660,38 +666,74 @@ func DeleteArchiveTempFile(archive *Archive) error {
 	return nil
 }
 
+// Stats holds archiving counts for a single archive type, summable across orgs via Add.
+type Stats struct {
+	RecordsArchived int
+	ArchivesCreated int
+	ArchivesFailed  int
+	RollupsCreated  int
+	RollupsFailed   int
+}
+
+// Add accumulates another Stats into this one.
+func (s *Stats) Add(o Stats) {
+	s.RecordsArchived += o.RecordsArchived
+	s.ArchivesCreated += o.ArchivesCreated
+	s.ArchivesFailed += o.ArchivesFailed
+	s.RollupsCreated += o.RollupsCreated
+	s.RollupsFailed += o.RollupsFailed
+}
+
+// archiveResults holds the archives created, failed and purged for a single org and archive type.
+type archiveResults struct {
+	dailiesCreated   []*Archive
+	dailiesFailed    []*Archive
+	monthliesCreated []*Archive
+	monthliesFailed  []*Archive
+	dailiesPurged    []*Archive
+}
+
+// stats summarizes the results into counts for metrics reporting.
+func (r archiveResults) stats() Stats {
+	return Stats{
+		RecordsArchived: countRecords(r.dailiesCreated),
+		ArchivesCreated: len(r.dailiesCreated),
+		ArchivesFailed:  len(r.dailiesFailed),
+		RollupsCreated:  len(r.monthliesCreated),
+		RollupsFailed:   len(r.monthliesFailed),
+	}
+}
+
 // CreateOrgArchives builds all the missing archives for the passed in org
-func CreateOrgArchives(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, archiveType ArchiveType) ([]*Archive, []*Archive, []*Archive, []*Archive, error) {
+func CreateOrgArchives(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, archiveType ArchiveType) (archiveResults, error) {
+	var res archiveResults
+
 	archiveCount, err := GetCurrentArchiveCount(ctx, rt.DB, org, archiveType)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("error getting current archive count: %w", err)
+		return res, fmt.Errorf("error getting current archive count: %w", err)
 	}
-
-	var dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed []*Archive
 
 	// no existing archives means this might be a backfill, figure out if there are full months we can build first
 	if archiveCount == 0 {
 		archives, err := GetMissingMonthlyArchives(ctx, rt.DB, now, org, archiveType)
 		if err != nil {
-			return nil, nil, nil, nil, fmt.Errorf("error getting missing monthly archives: %w", err)
+			return res, fmt.Errorf("error getting missing monthly archives: %w", err)
 		}
 
 		// we first create monthly archives
-		monthliesCreated, monthliesFailed = createArchives(ctx, rt, org, archives)
+		res.monthliesCreated, res.monthliesFailed = createArchives(ctx, rt, org, archives)
 	}
 
 	// then add in daily archives taking into account the monthly that have been built
 	daily, err := GetMissingDailyArchives(ctx, rt.DB, now, org, archiveType)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("error getting missing daily archives: %w", err)
+		return res, fmt.Errorf("error getting missing daily archives: %w", err)
 	}
 
 	// we then create missing daily archives
-	dailiesCreated, dailiesFailed = createArchives(ctx, rt, org, daily)
+	res.dailiesCreated, res.dailiesFailed = createArchives(ctx, rt, org, daily)
 
-	defer ctx.Done()
-
-	return dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, nil
+	return res, nil
 }
 
 func createArchive(ctx context.Context, rt *runtime.Runtime, archive *Archive) error {
@@ -932,57 +974,48 @@ func DeleteRolledUpDailyArchives(ctx context.Context, rt *runtime.Runtime, org O
 }
 
 // archiveTypeForOrg looks for any missing archives of the given type for the passed in org, creating and uploading them as necessary, returning the created archives
-func archiveTypeForOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, archiveType ArchiveType) ([]*Archive, []*Archive, []*Archive, []*Archive, []*Archive, error) {
+func archiveTypeForOrg(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, archiveType ArchiveType) (archiveResults, error) {
 	log := slog.With("org_id", org.ID, "org_name", org.Name)
 	start := dates.Now()
 
-	dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, err := CreateOrgArchives(ctx, rt, now, org, archiveType)
+	res, err := CreateOrgArchives(ctx, rt, now, org, archiveType)
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("error creating archives: %w", err)
+		return res, fmt.Errorf("error creating archives: %w", err)
 	}
 
-	if len(dailiesCreated) > 0 {
+	if len(res.dailiesCreated) > 0 {
 		elapsed := dates.Since(start)
-		rate := float32(countRecords(dailiesCreated)) / (float32(elapsed) / float32(time.Second))
+		rate := float32(countRecords(res.dailiesCreated)) / (float32(elapsed) / float32(time.Second))
 		log.Info("completed archival for org", "elapsed", elapsed, "records_per_second", rate)
 	}
 
 	rollupsCreated, rollupsFailed, err := RollupOrgArchives(ctx, rt, now, org, archiveType)
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("error rolling up archives: %w", err)
+		return res, fmt.Errorf("error rolling up archives: %w", err)
 	}
 
-	monthliesCreated = append(monthliesCreated, rollupsCreated...)
-	monthliesFailed = append(monthliesFailed, rollupsFailed...)
-	monthliesFailed = removeDuplicates(monthliesFailed) // don't double report monthlies that fail being built from db and rolled up from dailies
+	res.monthliesCreated = append(res.monthliesCreated, rollupsCreated...)
+	// don't double report monthlies that fail being built from db and rolled up from dailies
+	res.monthliesFailed = removeDuplicates(append(res.monthliesFailed, rollupsFailed...))
 
 	// purge records from the database for dailies that still need it
-	dailiesPurged, err := PurgeArchivedRecords(ctx, rt, now, org, archiveType)
+	res.dailiesPurged, err = PurgeArchivedRecords(ctx, rt, now, org, archiveType)
 	if err != nil {
-		return dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, nil, fmt.Errorf("error purging archived records: %w", err)
+		return res, fmt.Errorf("error purging archived records: %w", err)
 	}
 
 	// delete daily archives that have been rolled up into monthlies and had their records purged
-	_, err = DeleteRolledUpDailyArchives(ctx, rt, org, archiveType)
-	if err != nil {
-		return dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, dailiesPurged, fmt.Errorf("error deleting rolled up daily archives: %w", err)
+	if _, err := DeleteRolledUpDailyArchives(ctx, rt, org, archiveType); err != nil {
+		return res, fmt.Errorf("error deleting rolled up daily archives: %w", err)
 	}
 
-	return dailiesCreated, dailiesFailed, monthliesCreated, monthliesFailed, dailiesPurged, nil
+	return res, nil
 }
 
-// orgResult holds the per-org archiving counts for messages and runs
+// orgResult holds the per-org archiving stats for messages and runs
 type orgResult struct {
-	msgsRecordsArchived int
-	msgsArchivesCreated int
-	msgsArchivesFailed  int
-	msgsRollupsCreated  int
-	msgsRollupsFailed   int
-	runsRecordsArchived int
-	runsArchivesCreated int
-	runsArchivesFailed  int
-	runsRollupsCreated  int
-	runsRollupsFailed   int
+	msgs Stats
+	runs Stats
 }
 
 // ArchiveOrg grabs a per-org lock and archives that org's messages and runs. It returns ok=false
@@ -1021,31 +1054,23 @@ func ArchiveOrg(ctx context.Context, rt *runtime.Runtime, start time.Time, org O
 
 	var res orgResult
 
-	msgDailiesCreated, msgDailiesFailed, msgMonthliesCreated, msgMonthliesFailed, _, err := archiveTypeForOrg(ctx, rt, start, org, MessageType)
+	msgRes, err := archiveTypeForOrg(ctx, rt, start, org, MessageType)
 	// a cancelled context here means we're shutting down, not a real failure — don't report it as an error
 	if err != nil && ctx.Err() == nil {
 		log.Error("error archiving org messages", "error", err, "archive_type", MessageType)
 	}
-	res.msgsRecordsArchived = countRecords(msgDailiesCreated)
-	res.msgsArchivesCreated = len(msgDailiesCreated)
-	res.msgsArchivesFailed = len(msgDailiesFailed)
-	res.msgsRollupsCreated = len(msgMonthliesCreated)
-	res.msgsRollupsFailed = len(msgMonthliesFailed)
+	res.msgs = msgRes.stats()
 
 	// if we've been cancelled, skip the run pass rather than re-entering the DB helpers on a dead context
 	if ctx.Err() != nil {
 		return res, true
 	}
 
-	runDailiesCreated, runDailiesFailed, runMonthliesCreated, runMonthliesFailed, _, err := archiveTypeForOrg(ctx, rt, start, org, RunType)
+	runRes, err := archiveTypeForOrg(ctx, rt, start, org, RunType)
 	if err != nil && ctx.Err() == nil {
 		log.Error("error archiving org runs", "error", err, "archive_type", RunType)
 	}
-	res.runsRecordsArchived = countRecords(runDailiesCreated)
-	res.runsArchivesCreated = len(runDailiesCreated)
-	res.runsArchivesFailed = len(runDailiesFailed)
-	res.runsRollupsCreated = len(runMonthliesCreated)
-	res.runsRollupsFailed = len(runMonthliesFailed)
+	res.runs = runRes.stats()
 
 	return res, true
 }
@@ -1063,11 +1088,7 @@ func ArchiveActiveOrgs(ctx context.Context, rt *runtime.Runtime) error {
 		return fmt.Errorf("error getting active orgs: %w", err)
 	}
 
-	totalRunsRecordsArchived, totalMsgsRecordsArchived := 0, 0
-	totalRunsArchivesCreated, totalMsgsArchivesCreated := 0, 0
-	totalRunsArchivesFailed, totalMsgsArchivesFailed := 0, 0
-	totalRunsRollupsCreated, totalMsgsRollupsCreated := 0, 0
-	totalRunsRollupsFailed, totalMsgsRollupsFailed := 0, 0
+	var msgs, runs Stats
 
 	// for each org, do our export
 	for _, org := range orgs {
@@ -1083,17 +1104,8 @@ func ArchiveActiveOrgs(ctx context.Context, rt *runtime.Runtime) error {
 			continue
 		}
 
-		totalMsgsRecordsArchived += res.msgsRecordsArchived
-		totalMsgsArchivesCreated += res.msgsArchivesCreated
-		totalMsgsArchivesFailed += res.msgsArchivesFailed
-		totalMsgsRollupsCreated += res.msgsRollupsCreated
-		totalMsgsRollupsFailed += res.msgsRollupsFailed
-
-		totalRunsRecordsArchived += res.runsRecordsArchived
-		totalRunsArchivesCreated += res.runsArchivesCreated
-		totalRunsArchivesFailed += res.runsArchivesFailed
-		totalRunsRollupsCreated += res.runsRollupsCreated
-		totalRunsRollupsFailed += res.runsRollupsFailed
+		msgs.Add(res.msgs)
+		runs.Add(res.runs)
 	}
 
 	timeTaken := dates.Now().Sub(start)
@@ -1104,16 +1116,16 @@ func ArchiveActiveOrgs(ctx context.Context, rt *runtime.Runtime) error {
 
 	metrics := []types.MetricDatum{
 		cwatch.Datum("ArchivingElapsed", timeTaken.Seconds(), types.StandardUnitSeconds),
-		cwatch.Datum("RecordsArchived", float64(totalMsgsRecordsArchived), types.StandardUnitCount, msgsDim),
-		cwatch.Datum("RecordsArchived", float64(totalRunsRecordsArchived), types.StandardUnitCount, runsDim),
-		cwatch.Datum("ArchivesCreated", float64(totalMsgsArchivesCreated), types.StandardUnitCount, msgsDim),
-		cwatch.Datum("ArchivesCreated", float64(totalRunsArchivesCreated), types.StandardUnitCount, runsDim),
-		cwatch.Datum("ArchivesFailed", float64(totalMsgsArchivesFailed), types.StandardUnitCount, msgsDim),
-		cwatch.Datum("ArchivesFailed", float64(totalRunsArchivesFailed), types.StandardUnitCount, runsDim),
-		cwatch.Datum("RollupsCreated", float64(totalMsgsRollupsCreated), types.StandardUnitCount, msgsDim),
-		cwatch.Datum("RollupsCreated", float64(totalRunsRollupsCreated), types.StandardUnitCount, runsDim),
-		cwatch.Datum("RollupsFailed", float64(totalMsgsRollupsFailed), types.StandardUnitCount, msgsDim),
-		cwatch.Datum("RollupsFailed", float64(totalRunsRollupsFailed), types.StandardUnitCount, runsDim),
+		cwatch.Datum("RecordsArchived", float64(msgs.RecordsArchived), types.StandardUnitCount, msgsDim),
+		cwatch.Datum("RecordsArchived", float64(runs.RecordsArchived), types.StandardUnitCount, runsDim),
+		cwatch.Datum("ArchivesCreated", float64(msgs.ArchivesCreated), types.StandardUnitCount, msgsDim),
+		cwatch.Datum("ArchivesCreated", float64(runs.ArchivesCreated), types.StandardUnitCount, runsDim),
+		cwatch.Datum("ArchivesFailed", float64(msgs.ArchivesFailed), types.StandardUnitCount, msgsDim),
+		cwatch.Datum("ArchivesFailed", float64(runs.ArchivesFailed), types.StandardUnitCount, runsDim),
+		cwatch.Datum("RollupsCreated", float64(msgs.RollupsCreated), types.StandardUnitCount, msgsDim),
+		cwatch.Datum("RollupsCreated", float64(runs.RollupsCreated), types.StandardUnitCount, runsDim),
+		cwatch.Datum("RollupsFailed", float64(msgs.RollupsFailed), types.StandardUnitCount, msgsDim),
+		cwatch.Datum("RollupsFailed", float64(runs.RollupsFailed), types.StandardUnitCount, runsDim),
 	}
 
 	// send metrics on a fresh context so they report even when we're shutting down
