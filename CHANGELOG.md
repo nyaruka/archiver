@@ -1,3 +1,7 @@
+v26.1.2 (2026-06-05)
+-------------------------
+ * Fix temp-file leak, refactor archiving stats, and dedup delete logic
+
 v26.1.1 (2026-06-04)
 -------------------------
  * Remove goreleaser; releases are now built as a Docker image from git tags
