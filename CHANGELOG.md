@@ -1,3 +1,7 @@
+v26.1.3 (2026-06-11)
+-------------------------
+ * Remove TempDir config setting and use OS default temp directory
+
 v26.1.2 (2026-06-05)
 -------------------------
  * Fix temp-file leak, refactor archiving stats, and dedup delete logic
