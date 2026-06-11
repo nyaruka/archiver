@@ -28,7 +28,8 @@ environment variables and parameters and for more details on each option.
 
  * `ARCHIVER_DB`: URL describing how to connect to the database
  * `ARCHIVER_VALKEY`: URL describing how to connect to Valkey, used to lock orgs so that overlapping runs don't archive the same org at once
- * `ARCHIVER_TEMP_DIR`: The directory that temporary archives will be written before upload
+
+Temporary archive files are written to the OS temp directory (honoring `TMPDIR` if set) before upload.
 
 ### AWS services:
 

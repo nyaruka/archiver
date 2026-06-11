@@ -11,7 +11,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -355,7 +354,7 @@ func BuildRollupArchive(ctx context.Context, rt *runtime.Runtime, monthlyArchive
 
 	// great, we have all the dailies we need, download them
 	filename := fmt.Sprintf("%s_%d_%s_%d_%02d_", monthlyArchive.ArchiveType, monthlyArchive.Org.ID, monthlyArchive.Period, monthlyArchive.StartDate.Year(), monthlyArchive.StartDate.Month())
-	file, err := os.CreateTemp(rt.Config.TempDir, filename)
+	file, err := os.CreateTemp("", filename)
 	if err != nil {
 		return fmt.Errorf("error creating temp file: %s: %w", filename, err)
 	}
@@ -454,39 +453,8 @@ func BuildRollupArchive(ctx context.Context, rt *runtime.Runtime, monthlyArchive
 	return nil
 }
 
-// EnsureTempArchiveDirectory checks that we can write to our archive directory, creating it first if needbe
-func EnsureTempArchiveDirectory(path string) error {
-	if len(path) == 0 {
-		return fmt.Errorf("path argument cannot be empty")
-	}
-
-	// check if path is a directory we can write to
-	fileInfo, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return os.MkdirAll(path, 0700)
-	} else if err != nil {
-		return fmt.Errorf("error statting temp dir: %s: %w", path, err)
-	}
-
-	// is path a directory
-	if !fileInfo.IsDir() {
-		return fmt.Errorf("path '%s' is not a directory", path)
-	}
-
-	testFilePath := filepath.Join(path, ".test_file")
-	testFile, err := os.Create(testFilePath)
-	if err != nil {
-		return fmt.Errorf("directory '%s' is not writable", path)
-	}
-
-	defer testFile.Close()
-
-	err = os.Remove(testFilePath)
-	return err
-}
-
 // CreateArchiveFile is responsible for writing an archive file for the passed in archive from our database
-func CreateArchiveFile(ctx context.Context, db *sqlx.DB, archive *Archive, archivePath string) error {
+func CreateArchiveFile(ctx context.Context, db *sqlx.DB, archive *Archive) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Hour*3)
 	defer cancel()
 
@@ -495,7 +463,7 @@ func CreateArchiveFile(ctx context.Context, db *sqlx.DB, archive *Archive, archi
 	log := slog.With("org_id", archive.Org.ID, "archive_type", archive.ArchiveType, "start_date", archive.StartDate, "end_date", archive.endDate(), "period", archive.Period)
 
 	filename := fmt.Sprintf("%s_%d_%s%d%02d%02d_", archive.ArchiveType, archive.Org.ID, archive.Period, archive.StartDate.Year(), archive.StartDate.Month(), archive.StartDate.Day())
-	file, err := os.CreateTemp(archivePath, filename)
+	file, err := os.CreateTemp("", filename)
 	if err != nil {
 		return fmt.Errorf("error creating temp file: %s: %w", filename, err)
 	}
@@ -741,7 +709,7 @@ func CreateOrgArchives(ctx context.Context, rt *runtime.Runtime, now time.Time, 
 }
 
 func createArchive(ctx context.Context, rt *runtime.Runtime, archive *Archive) error {
-	if err := CreateArchiveFile(ctx, rt.DB, archive, rt.Config.TempDir); err != nil {
+	if err := CreateArchiveFile(ctx, rt.DB, archive); err != nil {
 		return fmt.Errorf("error writing archive file: %w", err)
 	}
 

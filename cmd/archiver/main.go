@@ -128,8 +128,12 @@ func main() {
 	}
 	logger.Info("s3 bucket ok", "state", "starting")
 
-	if err := archives.EnsureTempArchiveDirectory(config.TempDir); err != nil {
+	// archives are built on disk before upload so check we can write temp files
+	if f, err := os.CreateTemp("", "archiver_check"); err != nil {
 		fatal("cannot write to temp directory", "error", err)
+	} else {
+		f.Close()
+		os.Remove(f.Name())
 	}
 	logger.Info("tmp file access ok", "state", "starting")
 
