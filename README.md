@@ -13,7 +13,7 @@ AWS ECS Scheduled Task driven by EventBridge, etc).
 ## Configuration
 
  * `ARCHIVER_DB`: URL describing how to connect to the database
- * `ARCHIVER_VALKEY`: URL describing how to connect to Valkey\
+ * `ARCHIVER_VALKEY`: URL describing how to connect to Valkey
 
 ### AWS 
 
