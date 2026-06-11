@@ -152,9 +152,6 @@ func TestGetMissingMonthArchives(t *testing.T) {
 func TestCreateMsgArchive(t *testing.T) {
 	ctx, rt := setup(t)
 
-	err := EnsureTempArchiveDirectory("/tmp")
-	assert.NoError(t, err)
-
 	orgs, err := GetActiveOrgs(ctx, rt)
 	assert.NoError(t, err)
 	now := time.Date(2018, 1, 8, 12, 30, 0, 0, time.UTC)
@@ -165,7 +162,7 @@ func TestCreateMsgArchive(t *testing.T) {
 	task := tasks[0]
 
 	// build our first task, should have no messages
-	err = CreateArchiveFile(ctx, rt.DB, task, "/tmp")
+	err = CreateArchiveFile(ctx, rt.DB, task)
 	assert.NoError(t, err)
 
 	// should have no records and be an empty gzip file
@@ -177,7 +174,7 @@ func TestCreateMsgArchive(t *testing.T) {
 
 	// build our third task, should have two messages
 	task = tasks[2]
-	err = CreateArchiveFile(ctx, rt.DB, task, "/tmp")
+	err = CreateArchiveFile(ctx, rt.DB, task)
 	assert.NoError(t, err)
 
 	// should have two records, second will have attachments
@@ -197,7 +194,7 @@ func TestCreateMsgArchive(t *testing.T) {
 	assert.Equal(t, 31, len(tasks))
 	task = tasks[0]
 
-	err = CreateArchiveFile(ctx, rt.DB, task, "/tmp")
+	err = CreateArchiveFile(ctx, rt.DB, task)
 	assert.NoError(t, err)
 
 	// should have one record
@@ -227,9 +224,6 @@ func assertArchiveFile(t *testing.T, archive *Archive, truthName string) {
 func TestCreateRunArchive(t *testing.T) {
 	ctx, rt := setup(t)
 
-	err := EnsureTempArchiveDirectory("/tmp")
-	assert.NoError(t, err)
-
 	orgs, err := GetActiveOrgs(ctx, rt)
 	assert.NoError(t, err)
 	now := time.Date(2018, 1, 8, 12, 30, 0, 0, time.UTC)
@@ -239,7 +233,7 @@ func TestCreateRunArchive(t *testing.T) {
 	assert.Equal(t, 62, len(tasks))
 	task := tasks[0]
 
-	err = CreateArchiveFile(ctx, rt.DB, task, "/tmp")
+	err = CreateArchiveFile(ctx, rt.DB, task)
 	assert.NoError(t, err)
 
 	// should have no records and be an empty gzip file
@@ -250,7 +244,7 @@ func TestCreateRunArchive(t *testing.T) {
 	DeleteArchiveTempFile(task)
 
 	task = tasks[2]
-	err = CreateArchiveFile(ctx, rt.DB, task, "/tmp")
+	err = CreateArchiveFile(ctx, rt.DB, task)
 	assert.NoError(t, err)
 
 	// should have two record
@@ -270,7 +264,7 @@ func TestCreateRunArchive(t *testing.T) {
 	task = tasks[0]
 
 	// build our first task, should have no messages
-	err = CreateArchiveFile(ctx, rt.DB, task, "/tmp")
+	err = CreateArchiveFile(ctx, rt.DB, task)
 	assert.NoError(t, err)
 
 	// should have one record

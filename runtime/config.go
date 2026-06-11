@@ -13,8 +13,7 @@ type Config struct {
 	S3Bucket    string `help:"S3 bucket we will write archives to"`
 	S3PathStyle bool   `help:"S3 should use path style URLs"`
 
-	TempDir       string `help:"directory where temporary archive files are written"`
-	CheckS3Hashes bool   `help:"whether to check S3 hashes of uploaded archives before deleting records"`
+	CheckS3Hashes bool `help:"whether to check S3 hashes of uploaded archives before deleting records"`
 
 	RetentionPeriod int `help:"the number of days to keep before archiving"`
 
@@ -35,7 +34,6 @@ func NewDefaultConfig() *Config {
 		S3Bucket:    "temba-archives",
 		S3PathStyle: false,
 
-		TempDir:       "/tmp",
 		CheckS3Hashes: true,
 
 		RetentionPeriod: 90,
