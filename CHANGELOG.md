@@ -1,3 +1,7 @@
+v26.2.0 (2026-06-15)
+-------------------------
+ * Update dependencies
+
 v26.1.3 (2026-06-11)
 -------------------------
  * Remove TempDir config setting and use OS default temp directory
