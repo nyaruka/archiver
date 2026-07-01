@@ -1,3 +1,8 @@
+v26.3.1 (2026-07-01)
+-------------------------
+ * Update dependencies
+ * Upgrade to gocommon v1.84.0
+
 v26.3.0 (2026-07-01)
 -------------------------
  * Resolve AWS region from standard AWS SDK chain instead of ARCHIVER_AWS_REGION
