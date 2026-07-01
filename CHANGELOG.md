@@ -1,3 +1,7 @@
+v26.3.0 (2026-07-01)
+-------------------------
+ * Resolve AWS region from standard AWS SDK chain instead of ARCHIVER_AWS_REGION
+
 v26.2.0 (2026-06-15)
 -------------------------
  * Update dependencies
