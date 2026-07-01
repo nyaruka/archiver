@@ -17,11 +17,10 @@ AWS ECS Scheduled Task driven by EventBridge, etc).
 
 ### AWS 
 
- * `ARCHIVER_AWS_REGION`: AWS region (e.g. `eu-west-1`)
-
-AWS credentials are resolved via the standard AWS SDK default credential chain (instance/task IAM
-role, `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables, shared credentials
-file, etc). When running on AWS the task/instance role is the recommended option.
+The AWS region and credentials are resolved via the standard AWS SDK default chain — the
+`AWS_REGION` (or `AWS_DEFAULT_REGION`) environment variable, the instance/task IAM role,
+`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables, the shared config/credentials
+files, etc. When running on AWS the task/instance role is the recommended option for credentials.
 
 For writing of archives, Archiver needs access to a storage bucket on an S3 compatible service. We recommend that 
 you choose SSE-S3 encryption as this is the only type that supports validation of upload ETags.

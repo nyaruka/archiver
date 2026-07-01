@@ -29,9 +29,10 @@ func setup(t *testing.T) (context.Context, *runtime.Runtime) {
 	config.DB = "postgres://archiver_test:temba@postgres:5432/archiver_test?sslmode=disable&TimeZone=UTC"
 	config.Valkey = "valkey://valkey:6379/0"
 
-	// AWS default credential chain reads these — used by the localstack S3 client
+	// AWS SDK default chain reads these — used by the localstack S3 client
 	t.Setenv("AWS_ACCESS_KEY_ID", "root")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "tembatemba")
+	t.Setenv("AWS_REGION", "us-east-1")
 
 	config.S3Endpoint = "http://localstack:4566"
 	config.S3PathStyle = true
@@ -65,7 +66,7 @@ func setup(t *testing.T) (context.Context, *runtime.Runtime) {
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})))
 
-	CW, err := cwatch.NewService("", "", config.AWSRegion, config.CloudwatchNamespace, config.DeploymentID)
+	CW, err := cwatch.NewService("", "", "", config.CloudwatchNamespace, config.DeploymentID)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
