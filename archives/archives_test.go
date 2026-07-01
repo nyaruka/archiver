@@ -66,7 +66,7 @@ func setup(t *testing.T) (context.Context, *runtime.Runtime) {
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})))
 
-	CW, err := cwatch.NewService("", "", "", config.CloudwatchNamespace, config.DeploymentID)
+	CW, err := cwatch.NewService(ctx, config.CloudwatchNamespace, config.DeploymentID)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
