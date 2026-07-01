@@ -7,8 +7,6 @@ type Config struct {
 	LogLevel  string `help:"the log level, one of error, warn, info, debug"`
 	SentryDSN string `help:"the sentry configuration to log errors to, if any"`
 
-	AWSRegion string `help:"region to use for AWS services, e.g. us-east-1"`
-
 	S3Endpoint  string `help:"S3 endpoint we will write archives to"`
 	S3Bucket    string `help:"S3 bucket we will write archives to"`
 	S3PathStyle bool   `help:"S3 should use path style URLs"`
@@ -27,8 +25,6 @@ func NewDefaultConfig() *Config {
 	return &Config{
 		DB:     "postgres://localhost/archiver_test?sslmode=disable",
 		Valkey: "valkey://localhost:6379/15",
-
-		AWSRegion: "us-east-1",
 
 		S3Endpoint:  "https://s3.amazonaws.com",
 		S3Bucket:    "temba-archives",
