@@ -137,7 +137,7 @@ func main() {
 	}
 	logger.Info("tmp file access ok", "state", "starting")
 
-	rt.CW, err = cwatch.NewService("", "", "", config.CloudwatchNamespace, config.DeploymentID)
+	rt.CW, err = cwatch.NewService(context.Background(), config.CloudwatchNamespace, config.DeploymentID)
 	if err != nil {
 		fatal("unable to create cloudwatch service", "error", err)
 	}
