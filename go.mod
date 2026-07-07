@@ -12,9 +12,9 @@ require (
 	github.com/gomodule/redigo v1.9.3
 	github.com/lib/pq v1.12.3
 	github.com/nyaruka/ezconf v0.6.1
-	github.com/nyaruka/gocommon v1.84.0
+	github.com/nyaruka/gocommon v1.89.2
 	github.com/nyaruka/null/v3 v3.0.0
-	github.com/nyaruka/vkutil v0.20.0
+	github.com/nyaruka/vkutil v0.21.0
 	github.com/samber/slog-multi v1.8.0
 	github.com/samber/slog-sentry/v2 v2.11.0
 	github.com/stretchr/testify v1.11.1
@@ -42,7 +42,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/go-playground/validator/v10 v10.30.1 // indirect
+	github.com/go-playground/validator/v10 v10.30.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
@@ -55,7 +55,7 @@ require (
 	github.com/samber/lo v1.53.0 // indirect
 	github.com/samber/slog-common v0.22.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
+	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/exp v0.0.0-20260611194520-c48552f49976 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
