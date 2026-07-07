@@ -1,3 +1,7 @@
+v26.3.2 (2026-07-07)
+-------------------------
+ * Update to gocommon v1.89.2 which resolves AWS region for S3 URLs internally
+
 v26.3.1 (2026-07-01)
 -------------------------
  * Update dependencies
