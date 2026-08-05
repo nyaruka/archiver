@@ -538,6 +538,15 @@ func TestArchiveOrgRuns(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, count)
 
+	// the org's old flow start with no runs should have been deleted, along with its dependent rows
+	assertdb.Query(t, rt.DB, "SELECT count(*) FROM flows_flowstart WHERE id = 2").Returns(0)
+	assertdb.Query(t, rt.DB, "SELECT count(*) FROM flows_flowstart_contacts WHERE flowstart_id = 2").Returns(0)
+	assertdb.Query(t, rt.DB, "SELECT count(*) FROM flows_flowstart_groups WHERE flowstart_id = 2").Returns(0)
+	assertdb.Query(t, rt.DB, "SELECT count(*) FROM flows_flowstartcount WHERE start_id = 2").Returns(0)
+
+	// but the start which still has a run is untouched
+	assertdb.Query(t, rt.DB, "SELECT count(*) FROM flows_flowstart WHERE id = 1").Returns(1)
+
 	// org 2 will create backfilled monthlies for 2017-08 and 2017-09.. and then only dailies for 2017-10-01 to 2017-10-10
 	res, err = archiveTypeForOrg(ctx, rt, now, orgs[1], RunType)
 	assert.NoError(t, err)

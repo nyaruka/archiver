@@ -283,7 +283,8 @@ INSERT INTO contacts_contactgroup(id, uuid, org_id, name) VALUES
 (1, '4ea0f313-2f62-4e57-bdf0-232b5191dd57', 2, 'Group 1'),
 (2, '4c016340-468d-4675-a974-15cb7a45a5ab', 2, 'Group 2'),
 (3, 'e61b5bf7-8ddf-4e05-b0a8-4c46a6b68cff', 2, 'Group 3'),
-(4, '529bac39-550a-4d6f-817c-1833f3449007', 2, 'Group 4');
+(4, '529bac39-550a-4d6f-817c-1833f3449007', 2, 'Group 4'),
+(5, '2c0b9d2e-4a19-4a0f-9a5d-1b8a4b0d6c31', 3, 'Group 5');
 
 INSERT INTO contacts_contactgroup_contacts(id, contact_id, contactgroup_id) VALUES
 (1, 1, 1),
@@ -326,14 +327,21 @@ INSERT INTO msgs_msg_labels(id, msg_id, label_id) VALUES
 INSERT INTO users_user(id, email) VALUES
 (1, 'greg@gmail.com');
 
+-- start #1 has a run and so is never orphaned, start #2 is old and has no runs so it should be deleted
 INSERT INTO flows_flowstart(id, uuid, org_id, flow_id, start_type, status, created_on, modified_on) VALUES
-(1, '5f7f5b9a-5c4d-4a3e-9b7a-1c6d8e2f3a4b', 2, 1, 'M', 'C', NOW(), NOW());
+(1, '5f7f5b9a-5c4d-4a3e-9b7a-1c6d8e2f3a4b', 2, 1, 'M', 'C', NOW(), NOW()),
+(2, 'a1e7bd0c-6b3f-4a58-8e2d-7c9f5a1b2d34', 3, 2, 'M', 'C', '2017-08-10 21:11:59.890662+00', '2017-08-10 21:11:59.890662+00');
 
 INSERT INTO flows_flowstart_contacts(flowstart_id, contact_id) VALUES
-(1, 6);
+(1, 6),
+(2, 7);
 
 INSERT INTO flows_flowstart_groups(flowstart_id, contactgroup_id) VALUES
-(1, 1);
+(1, 1),
+(2, 5);
+
+INSERT INTO flows_flowstartcount(start_id, count, is_squashed) VALUES
+(2, 1, FALSE);
 
 INSERT INTO flows_flowrun(id, uuid, org_id, responded, session_uuid, contact_id, flow_id, results, path_nodes, path_times, created_on, modified_on, exited_on, status, start_id) VALUES
 (
