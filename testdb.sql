@@ -17,7 +17,6 @@ DROP TABLE IF EXISTS msgs_broadcast CASCADE;
 DROP TABLE IF EXISTS msgs_msg_labels CASCADE;
 DROP TABLE IF EXISTS msgs_label CASCADE;
 DROP TABLE IF EXISTS msgs_msg CASCADE;
-DROP TABLE IF EXISTS msgs_optin CASCADE;
 DROP TABLE IF EXISTS contacts_contacturn CASCADE;
 DROP TABLE IF EXISTS contacts_contactgroup_contacts CASCADE;
 DROP TABLE IF EXISTS contacts_contactgroup CASCADE;
@@ -121,13 +120,6 @@ CREATE TABLE msgs_broadcastmsgcount (
     broadcast_id integer NOT NULL REFERENCES msgs_broadcast(id)
 );
 
-CREATE TABLE msgs_optin (
-    id serial PRIMARY KEY,
-    uuid uuid NOT NULL,
-    org_id integer NOT NULL REFERENCES orgs_org(id) ON DELETE CASCADE,
-    name character varying(64) NOT NULL
-);
-
 CREATE TABLE msgs_msg (
     id bigserial PRIMARY KEY,
     uuid uuid NOT NULL,
@@ -142,7 +134,6 @@ CREATE TABLE msgs_msg (
     text text NOT NULL,
     attachments character varying(2048)[] NULL,
     quickreplies jsonb NULL,
-    optin_id integer REFERENCES msgs_optin(id) ON DELETE CASCADE,
     locale character varying(6) NULL,
     created_on timestamp with time zone NOT NULL,
     modified_on timestamp with time zone NOT NULL,
