@@ -1,3 +1,8 @@
+v26.3.3 (2026-08-25)
+-------------------------
+ * Replace built-in Sentry integration with hooks for wrapping applications
+ * Update to latest gocommon and vkutil
+
 v26.3.2 (2026-07-07)
 -------------------------
  * Update to gocommon v1.89.2 which resolves AWS region for S3 URLs internally
