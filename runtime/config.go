@@ -1,11 +1,16 @@
 package runtime
 
+import (
+	"log/slog"
+
+	"github.com/nyaruka/ezconf"
+)
+
 // Config is our top level configuration object
 type Config struct {
-	DB        string `help:"the connection string for our database"`
-	Valkey    string `help:"the connection string for our Valkey instance, used for locking"`
-	LogLevel  string `help:"the log level, one of error, warn, info, debug"`
-	SentryDSN string `help:"the sentry configuration to log errors to, if any"`
+	DB       string     `help:"the connection string for our database"`
+	Valkey   string     `help:"the connection string for our Valkey instance, used for locking"`
+	LogLevel slog.Level `help:"the log level, one of error, warn, info, debug"`
 
 	S3Endpoint  string `help:"S3 endpoint we will write archives to"`
 	S3Bucket    string `help:"S3 bucket we will write archives to"`
@@ -37,6 +42,20 @@ func NewDefaultConfig() *Config {
 		CloudwatchNamespace: "Archiver",
 		DeploymentID:        "dev",
 
-		LogLevel: "info",
+		LogLevel: slog.LevelInfo,
 	}
+}
+
+// LoadConfig loads configuration from a config file, environment variables and command line args, on top of the
+// given defaults, e.g. NewDefaultConfig().
+func LoadConfig(cfg *Config, args ...string) (*Config, error) {
+	loader := ezconf.NewLoader(cfg, "archiver", "Archives RapidPro runs and msgs to S3", []string{"archiver.toml"})
+	if len(args) > 0 { // allow tests to pass in args
+		loader.SetArgs(args...)
+	}
+	if err := loader.Load(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }

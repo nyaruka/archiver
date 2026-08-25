@@ -31,8 +31,7 @@ If using a different encryption type or service that produces non-MD5 ETags:
 
  * `ARCHIVER_CHECK_S3_HASHES`: can be set to `FALSE` to disable checking of upload hashes.
 
-### Logging and error reporting:
+### Logging and metrics:
 
  * `ARCHIVER_DEPLOYMENT_ID`: used for metrics reporting
- * `ARCHIVER_SENTRY_DSN`: DSN to use when logging errors to Sentry
  * `ARCHIVER_LOG_LEVEL`: logging level to use
