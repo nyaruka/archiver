@@ -26,4 +26,8 @@ func TestLoadConfig(t *testing.T) {
 	cfg, err = runtime.LoadConfig(base, `--s3-bucket=other-archives`)
 	assert.NoError(t, err)
 	assert.Equal(t, "other-archives", cfg.S3Bucket)
+
+	// invalid values are rejected
+	_, err = runtime.LoadConfig(runtime.NewDefaultConfig(), `--log-level=bogus`)
+	assert.Error(t, err)
 }
