@@ -1,8 +1,11 @@
 package archives
 
 import (
+	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -205,6 +208,43 @@ func TestCreateMsgArchive(t *testing.T) {
 	assertArchiveFile(t, task, "messages2.jsonl")
 
 	DeleteArchiveTempFile(task)
+}
+
+func TestMsgArchiveVisibility(t *testing.T) {
+	ctx, rt := setup(t)
+
+	// archived messages are identified by folder, whether or not visibility still carries the legacy archived value
+	_, err := rt.DB.ExecContext(ctx, `
+INSERT INTO msgs_msg(id, uuid, org_id, text, created_on, modified_on, direction, status, visibility, folder, msg_type, contact_id, msg_count, error_count) VALUES
+(101, '019aa2be-0000-7000-8000-000000000101', 2, 'archived by folder', '2017-08-14 10:00:00+00', '2017-08-14 10:00:00+00', 'I', 'H', 'V', 'A', 'T', 6, 1, 0),
+(102, '019aa2be-0000-7000-8000-000000000102', 2, 'archived by both', '2017-08-14 11:00:00+00', '2017-08-14 11:00:00+00', 'I', 'H', 'A', 'A', 'T', 6, 1, 0),
+(103, '019aa2be-0000-7000-8000-000000000103', 2, 'handled', '2017-08-14 12:00:00+00', '2017-08-14 12:00:00+00', 'I', 'H', 'V', 'W', 'T', 6, 1, 0),
+(104, '019aa2be-0000-7000-8000-000000000104', 2, 'deleted by user', '2017-08-14 13:00:00+00', '2017-08-14 13:00:00+00', 'I', 'H', 'D', 'D', 'T', 6, 1, 0),
+(105, '019aa2be-0000-7000-8000-000000000105', 2, 'deleted by sender', '2017-08-14 14:00:00+00', '2017-08-14 14:00:00+00', 'I', 'H', 'X', 'D', 'T', 6, 1, 0),
+(106, '019aa2be-0000-7000-8000-000000000106', 2, 'deleted before folder backfill', '2017-08-14 15:00:00+00', '2017-08-14 15:00:00+00', 'I', 'H', 'D', 'W', 'T', 6, 1, 0)`)
+	require.NoError(t, err)
+
+	orgs, err := GetActiveOrgs(ctx, rt)
+	require.NoError(t, err)
+
+	archive := &Archive{Org: orgs[1], OrgID: orgs[1].ID, ArchiveType: MessageType, Period: DayPeriod, StartDate: time.Date(2017, 8, 14, 0, 0, 0, 0, time.UTC)}
+
+	var buf bytes.Buffer
+	writer := bufio.NewWriter(&buf)
+	count, err := writeMessageRecords(ctx, rt.DB, archive, writer)
+	require.NoError(t, err)
+	require.NoError(t, writer.Flush())
+
+	// deleted messages are excluded from the archive, including one whose folder was never backfilled
+	assert.Equal(t, 3, count)
+
+	visibilities := []string{}
+	for line := range bytes.SplitSeq(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		record := map[string]any{}
+		require.NoError(t, json.Unmarshal(line, &record))
+		visibilities = append(visibilities, record["visibility"].(string))
+	}
+	assert.Equal(t, []string{"archived", "archived", "visible"}, visibilities)
 }
 
 func assertArchiveFile(t *testing.T, archive *Archive, truthName string) {

@@ -49,7 +49,9 @@ SELECT rec.visibility, row_to_json(rec) FROM (
 			WHEN status = 'R' THEN 'read'
 			ELSE NULL 
 		END AS status,
-		CASE WHEN visibility = 'V' THEN 'visible' WHEN visibility = 'A' THEN 'archived' WHEN visibility = 'D' THEN 'deleted' WHEN visibility = 'X' THEN 'deleted' ELSE NULL END as visibility,
+		-- archived state comes from folder, but deletion stays keyed on visibility, which is set on
+		-- rows predating the folder column and so is authoritative for messages old enough to archive
+		CASE WHEN visibility IN ('D', 'X') THEN 'deleted' WHEN folder = 'A' THEN 'archived' ELSE 'visible' END AS visibility,
 		text,
 		(SELECT coalesce(jsonb_agg(attach_row), '[]'::jsonb) FROM (SELECT attach_data.attachment[1] AS content_type, attach_data.attachment[2] AS url FROM (SELECT regexp_matches(unnest(attachments), '^(.*?):(.*)$') attachment) AS attach_data) AS attach_row) AS attachments,
 		labels_agg.data AS labels,
