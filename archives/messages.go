@@ -13,10 +13,7 @@ import (
 	"github.com/vinovest/sqlx"
 )
 
-const (
-	visibilityDeletedByUser   = "D"
-	visibilityDeletedBySender = "X"
-)
+const folderDeleted = "D"
 
 const sqlLookupMsgs = `
 SELECT rec.visibility, row_to_json(rec) FROM (
@@ -49,7 +46,7 @@ SELECT rec.visibility, row_to_json(rec) FROM (
 			WHEN status = 'R' THEN 'read'
 			ELSE NULL 
 		END AS status,
-		CASE WHEN visibility = 'V' THEN 'visible' WHEN visibility = 'A' THEN 'archived' WHEN visibility = 'D' THEN 'deleted' WHEN visibility = 'X' THEN 'deleted' ELSE NULL END as visibility,
+		CASE WHEN folder = 'A' THEN 'archived' WHEN folder = 'D' THEN 'deleted' ELSE 'visible' END AS visibility,
 		text,
 		(SELECT coalesce(jsonb_agg(attach_row), '[]'::jsonb) FROM (SELECT attach_data.attachment[1] AS content_type, attach_data.attachment[2] AS url FROM (SELECT regexp_matches(unnest(attachments), '^(.*?):(.*)$') attachment) AS attach_data) AS attach_row) AS attachments,
 		labels_agg.data AS labels,
@@ -100,7 +97,7 @@ func writeMessageRecords(ctx context.Context, db *sqlx.DB, archive *Archive, wri
 }
 
 const sqlSelectOrgMessagesInRange = `
-   SELECT mm.id, mm.visibility
+   SELECT mm.id, mm.folder
      FROM msgs_msg mm
 LEFT JOIN contacts_contact cc ON cc.id = mm.contact_id
     WHERE mm.org_id = $1 AND mm.created_on >= $2 AND mm.created_on < $3
@@ -148,15 +145,15 @@ func DeleteArchivedMessages(ctx context.Context, rt *runtime.Runtime, archive *A
 
 	for rows.Next() {
 		var msgID int64
-		var visibility string
-		if err := rows.Scan(&msgID, &visibility); err != nil {
+		var folder string
+		if err := rows.Scan(&msgID, &folder); err != nil {
 			return err
 		}
 
 		msgIDs = append(msgIDs, msgID)
 
 		// keep track of the number of visible messages, ie, not deleted
-		if visibility != visibilityDeletedByUser && visibility != visibilityDeletedBySender {
+		if folder != folderDeleted {
 			visibleCount++
 		}
 	}
