@@ -1,3 +1,7 @@
+v26.3.4 (2026-09-03)
+-------------------------
+ * Derive archived state of messages from folder column instead of visibility
+
 v26.3.3 (2026-08-25)
 -------------------------
  * Replace built-in Sentry integration with hooks for wrapping applications
