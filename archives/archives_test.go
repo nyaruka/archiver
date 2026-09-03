@@ -219,7 +219,9 @@ INSERT INTO msgs_msg(id, uuid, org_id, text, created_on, modified_on, direction,
 (101, '019aa2be-0000-7000-8000-000000000101', 2, 'archived by folder', '2017-08-14 10:00:00+00', '2017-08-14 10:00:00+00', 'I', 'H', 'V', 'A', 'T', 6, 1, 0),
 (102, '019aa2be-0000-7000-8000-000000000102', 2, 'archived by both', '2017-08-14 11:00:00+00', '2017-08-14 11:00:00+00', 'I', 'H', 'A', 'A', 'T', 6, 1, 0),
 (103, '019aa2be-0000-7000-8000-000000000103', 2, 'handled', '2017-08-14 12:00:00+00', '2017-08-14 12:00:00+00', 'I', 'H', 'V', 'W', 'T', 6, 1, 0),
-(104, '019aa2be-0000-7000-8000-000000000104', 2, 'deleted', '2017-08-14 13:00:00+00', '2017-08-14 13:00:00+00', 'I', 'H', 'V', 'D', 'T', 6, 1, 0)`)
+(104, '019aa2be-0000-7000-8000-000000000104', 2, 'deleted by user', '2017-08-14 13:00:00+00', '2017-08-14 13:00:00+00', 'I', 'H', 'D', 'D', 'T', 6, 1, 0),
+(105, '019aa2be-0000-7000-8000-000000000105', 2, 'deleted by sender', '2017-08-14 14:00:00+00', '2017-08-14 14:00:00+00', 'I', 'H', 'X', 'D', 'T', 6, 1, 0),
+(106, '019aa2be-0000-7000-8000-000000000106', 2, 'deleted before folder backfill', '2017-08-14 15:00:00+00', '2017-08-14 15:00:00+00', 'I', 'H', 'D', 'W', 'T', 6, 1, 0)`)
 	require.NoError(t, err)
 
 	orgs, err := GetActiveOrgs(ctx, rt)
@@ -233,7 +235,7 @@ INSERT INTO msgs_msg(id, uuid, org_id, text, created_on, modified_on, direction,
 	require.NoError(t, err)
 	require.NoError(t, writer.Flush())
 
-	// deleted message is excluded from the archive
+	// deleted messages are excluded from the archive, including one whose folder was never backfilled
 	assert.Equal(t, 3, count)
 
 	visibilities := []string{}
