@@ -11,7 +11,7 @@
 # To run a single pass instead of scheduling, override the command:
 #   docker run --rm ... archiver archiver
 
-FROM golang:1.26
+FROM golang:1.27
 WORKDIR /usr/src/app
 
 # pre-copy go.mod/go.sum so deps are cached unless they change
