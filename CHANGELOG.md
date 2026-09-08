@@ -1,3 +1,7 @@
+v26.3.5 (2026-09-08)
+-------------------------
+ * Update to go 1.27
+
 v26.3.4 (2026-09-03)
 -------------------------
  * Derive archived state of messages from folder column instead of visibility
