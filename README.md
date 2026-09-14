@@ -1,4 +1,4 @@
-# 🗄️ Archiver
+![Archiver](.github/banner.svg)
 
 [![Build Status](https://github.com/nyaruka/archiver/workflows/CI/badge.svg)](https://github.com/nyaruka/archiver/actions?query=workflow%3ACI) 
 
