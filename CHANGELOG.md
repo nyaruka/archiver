@@ -1,550 +1,426 @@
-v26.3.5 (2026-09-08)
--------------------------
+## v26.3.5 (2026-09-08)
  * Update to go 1.27
 
-v26.3.4 (2026-09-03)
--------------------------
+## v26.3.4 (2026-09-03)
  * Derive archived state of messages from folder column instead of visibility
 
-v26.3.3 (2026-08-25)
--------------------------
+## v26.3.3 (2026-08-25)
  * Replace built-in Sentry integration with hooks for wrapping applications
  * Update to latest gocommon and vkutil
 
-v26.3.2 (2026-07-07)
--------------------------
+## v26.3.2 (2026-07-07)
  * Update to gocommon v1.89.2 which resolves AWS region for S3 URLs internally
 
-v26.3.1 (2026-07-01)
--------------------------
+## v26.3.1 (2026-07-01)
  * Update dependencies
  * Upgrade to gocommon v1.84.0
 
-v26.3.0 (2026-07-01)
--------------------------
+## v26.3.0 (2026-07-01)
  * Resolve AWS region from standard AWS SDK chain instead of ARCHIVER_AWS_REGION
 
-v26.2.0 (2026-06-15)
--------------------------
+## v26.2.0 (2026-06-15)
  * Update dependencies
 
-v26.1.3 (2026-06-11)
--------------------------
+## v26.1.3 (2026-06-11)
  * Remove TempDir config setting and use OS default temp directory
 
-v26.1.2 (2026-06-05)
--------------------------
+## v26.1.2 (2026-06-05)
  * Fix temp-file leak, refactor archiving stats, and dedup delete logic
 
-v26.1.1 (2026-06-04)
--------------------------
+## v26.1.1 (2026-06-04)
  * Remove goreleaser; releases are now built as a Docker image from git tags
 
-v26.1.0 (2026-06-04)
--------------------------
+## v26.1.0 (2026-06-04)
  * First release
 
-v26.0.1 (2026-04-08)
--------------------------
+## v26.0.1 (2026-04-08)
  * Update to go 1.26
  * Update dependencies
 
-v26.0.0 (2026-01-05)
--------------------------
+## v26.0.0 (2026-01-05)
  * Use 'purge' terminology for removal of archived records to avoid confusion with deletion of archives
 
-v10.3.11 (2025-12-16)
--------------------------
+## v10.3.11 (2025-12-16)
  * Delete rolled up and purged archives
  * Use localstack for CI and local dev
 
-v10.3.10 (2025-12-03)
--------------------------
+## v10.3.10 (2025-12-03)
  * Update deps
  * Don't set hash or size for empty archives
 
-v10.3.9 (2025-12-02)
--------------------------
+## v10.3.9 (2025-12-02)
  * Start writing Archive.uuid
  * Don't upload empty archives to S3
 
-v10.3.8 (2025-12-01)
--------------------------
+## v10.3.8 (2025-12-01)
  * Remove another check on run status
 
-v10.3.7 (2025-12-01)
--------------------------
+## v10.3.7 (2025-12-01)
  * Remove delete config option
  * Remove options to keep local temp files and not upload to S3
 
-v10.3.6 (2025-11-25)
--------------------------
+## v10.3.6 (2025-11-25)
  * Stop writing Archive.url field
 
-v10.3.5 (2025-11-24)
--------------------------
+## v10.3.5 (2025-11-24)
  * Remove run status check
 
-v10.3.4 (2025-11-24)
--------------------------
+## v10.3.4 (2025-11-24)
  * Start writing new archive.location field
 
-v10.3.3 (2025-11-20)
--------------------------
+## v10.3.3 (2025-11-20)
  * Update deps
  * Include message UUIDs in archives
 
-v10.3.2 (2025-10-10)
--------------------------
+## v10.3.2 (2025-10-10)
  * Update dependencies
  * Switch to vinovest/sqlx fork of jmoiron/sqlx
 
-v10.3.1 (2025-09-25)
--------------------------
+## v10.3.1 (2025-09-25)
  * Include msg.ticket_uuid
 
-v10.3.0 (2025-09-18)
--------------------------
+## v10.3.0 (2025-09-18)
  * Bump to go 1.25
  * Update deps
  * flowrun.path replaced by path_nodes and path_times
 
-v10.2.0 (2025-07-01)
--------------------------
+## v10.2.0 (2025-07-01)
  * Update dependencies
  * Update to go 1.24
 
-v10.1.0 (2025-05-26)
--------------------------
+## v10.1.0 (2025-05-26)
  * Remove flows_flowstart_calls
 
-v10.0.0 (2025-01-07)
--------------------------
+## v10.0.0 (2025-01-07)
  * Update README.md
 
-v9.3.9 (2024-12-17)
--------------------------
+## v9.3.9 (2024-12-17)
  * Fix sending metrics
 
-v9.3.8 (2024-12-16)
--------------------------
+## v9.3.8 (2024-12-16)
  * Send metrics to cloudwatch and remove librato
 
-v9.3.7 (2024-12-05)
--------------------------
+## v9.3.7 (2024-12-05)
  * Support reading from run.path_nodes and path_times when set
 
-v9.3.6 (2024-08-23)
--------------------------
+## v9.3.6 (2024-08-23)
  * Fix uploading archives
 
-v9.3.5 (2024-08-23)
--------------------------
+## v9.3.5 (2024-08-23)
  * Improve error messages from failed S3 operations
 
-v9.3.4 (2024-08-22)
--------------------------
+## v9.3.4 (2024-08-22)
  * Always strip leading / from S3 keys
 
-v9.3.3 (2024-08-22)
--------------------------
+## v9.3.3 (2024-08-22)
  * Update to aws-sdk-go-v2
 
-v9.3.2 (2024-07-26)
--------------------------
+## v9.3.2 (2024-07-26)
  * Add runtime.Runtime to hold config, DB and S3
  * Update to latest gocommon
 
-v9.3.1 (2024-07-25)
--------------------------
+## v9.3.1 (2024-07-25)
  * Re-add config option to force path style urls in S3, use minio to emulate S3 for testing
 
-v9.3.0 (2024-07-25)
--------------------------
+## v9.3.0 (2024-07-25)
  * Update AWS/S3 config
 
-v9.2.0 (2024-07-17)
--------------------------
+## v9.2.0 (2024-07-17)
  * Update dependencies
  * Test against PostgreSQL 15
 
-v9.1.2 (2024-06-04)
--------------------------
+## v9.1.2 (2024-06-04)
  * Update deps
  * Use std lib errors
 
-v9.1.1 (2024-04-25)
--------------------------
+## v9.1.1 (2024-04-25)
  * Add support for status=READ
 
-v9.1.0 (2024-04-12)
--------------------------
+## v9.1.0 (2024-04-12)
  * Remove flows_flowrun.submitted_by
  * Replace logrus with slog
  * Update to go 1.22 and update deps
 
-v9.0.0 (2024-01-05)
--------------------------
+## v9.0.0 (2024-01-05)
  * Update dependencies
 
-v8.3.4 (2023-11-08)
--------------------------
+## v8.3.4 (2023-11-08)
  * Fix deleting of broadcasts so we don't include deleted scheduled broadcasts
 
-v8.3.3 (2023-09-26)
--------------------------
+## v8.3.3 (2023-09-26)
  * Allow disabling of hash checking
  * Fix checking S3 uploads so that we always check size but only check hash for files uploaded as single part
 
-v8.3.2 (2023-09-25)
--------------------------
+## v8.3.2 (2023-09-25)
  * Update to go 1.21
 
-v8.3.1 (2023-09-19)
--------------------------
+## v8.3.1 (2023-09-19)
  * Add support for optin type messages
  * Update deps and go version for CI
 
-v8.3.0 (2023-08-10)
--------------------------
+## v8.3.0 (2023-08-10)
  * Update to go 1.20
 
-v8.2.0 (2023-07-31)
--------------------------
+## v8.2.0 (2023-07-31)
  * Update .gitignore
 
-v8.1.7 (2023-06-06)
--------------------------
+## v8.1.7 (2023-06-06)
  * Fix release CHANGELOG generation
 
-v8.1.6 (2023-06-06)
--------------------------
+## v8.1.6 (2023-06-06)
  * Remove deleting of channel logs as these are no longer linked to messages
 
-v8.1.5 (2023-03-24)
--------------------------
+## v8.1.5 (2023-03-24)
  * Revert to go 1.19
 
-v8.1.4 (2023-03-15)
--------------------------
+## v8.1.4 (2023-03-15)
  * Match API and always return type=text|voice for messages
 
-v8.1.3 (2023-03-09)
--------------------------
+## v8.1.3 (2023-03-09)
  * Update dependencies and use go 1.20
  * Update test database schema and cleanup sql queries
 
-v8.1.2 (2023-02-20)
--------------------------
+## v8.1.2 (2023-02-20)
  * Add support for msg_type = T
 
-v8.1.1 (2023-02-15)
--------------------------
+## v8.1.1 (2023-02-15)
  * Don't try to delete broadcast URNs which no longer exist
 
-v8.1.0 (2023-01-18)
--------------------------
+## v8.1.0 (2023-01-18)
  * Delete old flow starts after deleting runs
 
-v8.0.0 (2023-01-09)
--------------------------
+## v8.0.0 (2023-01-09)
  * Only fetch broadcasts which don't have messages
  * Remove use of deprecated ioutil package
  * Update testdb.sql to reflect schema changes and cleanup sql variables
  * Test against postgres 14
 
-v7.5.0
-----------
+## v7.5.0 (2022-10-10)
  * Use go 1.19
  * Allow AWS Cred Chain
 
-v7.4.0
-----------
+## v7.4.0 (2022-07-08)
  * Include rollups in monthlies failed metric as well as monthlies created from scratch
 
-v7.3.7
-----------
+## v7.3.7 (2022-07-07)
  * Change query used to update rollup_id on dailies
  * Remove temporary logging
 
-v7.3.6
-----------
+## v7.3.6 (2022-07-06)
  * Add temporary additional logging
  * Replace ExitOnCompletion config option with Once which makes it run once and exit
 
-v7.3.5
-----------
+## v7.3.5 (2022-06-29)
  * Improve librato analytics and add tests
 
-v7.3.4
-----------
+## v7.3.4 (2022-06-28)
  * Rework stats reporting
  * Log version at startup
 
-v7.3.3
-----------
+## v7.3.3 (2022-06-13)
  * Fix parsing start times after midday
 
-v7.3.2
-----------
+## v7.3.2 (2022-06-13)
  * Don't log entire run JSON on error, just UUID
  * Make archival happen at configured start time even on first pass
 
-v7.3.1
-----------
+## v7.3.1 (2022-06-07)
  * Add librato analytics for time elapsed and number of orgs, msgs and runs
 
-v7.3.0
-----------
+## v7.3.0 (2022-05-24)
  * Update to go 1.18 and upgrade dependencies
  * Add support for Msg.visibility=X (deleted by sender)
  * Add arm64 as a build target
 
-v7.2.0
-----------
+## v7.2.0 (2022-03-07)
  * Tweak README
 
-v7.1.6
-----------
+## v7.1.6 (2022-02-24)
  * Stop setting delete_reason on runs before deletion
 
-v7.1.5
-----------
+## v7.1.5 (2022-02-22)
  * Stop updating msgs_msg.delete_reason which is no longer needed
 
-v7.1.4
-----------
+## v7.1.4 (2022-01-17)
  * Record flow on msgs
 
-v7.1.3
-----------
+## v7.1.3 (2022-01-13)
  * Remove deletion of recent runs as these are no longer created
 
-v7.1.2
-----------
+## v7.1.2 (2022-01-06)
  * Use run status instead of is_active and exit_type
  * No longer include events in run archives
 
-v7.1.1
-----------
+## v7.1.1 (2021-12-20)
  * Remove references to flowrun.parent_id which is no longer set by mailroom
 
-v7.1.0
-----------
+## v7.1.0 (2021-12-09)
  * Remove msgs_msg.response_to_id
 
-v7.0.0
-----------
+## v7.0.0 (2021-11-01)
  * Test on PG12 and 13
 
-v6.5.0
-----------
+## v6.5.0 (2021-10-04)
  * Limit paths in archived runs to first 500 steps
  * Use go 1.17
 
-v6.4.0
-----------
+## v6.4.0 (2021-07-06)
  * 6.4.0 Release Candidate
 
-v6.3.0
-----------
+## v6.3.0 (2021-06-23)
  * Don't try to load org languages
 
-v6.2.0
-----------
+## v6.2.0 (2021-03-01)
  * Bump CI testing to PG 11 and 12
  * 6.2.0 RC
 
-v6.0.3
-----------
+## v6.0.3 (2020-11-13)
  * log next day even when not sleeping
 
-v6.0.2
-----------
+## v6.0.2 (2020-11-13)
  * Fix next archive building calculation
 
-v6.0.1
-----------
+## v6.0.1 (2020-11-06)
  * Clean up archive file if there is a problem while uploading to s3 or writing to DB
  * Fix NPE when out of disk space
 
-v6.0.0
-----------
+## v6.0.0 (2020-11-05)
  * Update README
 
-v5.7.0
-----------
+## v5.7.0 (2020-08-24)
  * Add switch to specify start time of archival builds (thanks resistbot)
  * Add switch to exit on build completion (thanks resistbot)
 
-v5.6.0
-----------
+## v5.6.0 (2020-07-06)
  * 5.6.0 Release
 
-v5.4.0 
-----------
+## v5.4.0 (2020-03-02)
  * 5.4 Release
 
-v5.2.0
-----------
+## v5.2.0 (2019-10-28)
  * Sync release with RapidPro 5.2
  * Add PostgreSQL 11 tests
 
-v2.0.1
-----------
+## v2.0.1 (2019-07-25)
  * update table references according to v5.2 schema, use wrapf for errors
 
-v2.0.0
-----------
+## v2.0.0 (2019-06-13)
  * remove reading is_test on contact
 
-v1.0.8
-----------
+## v1.0.8 (2019-04-30)
  * up max connections to two since we need cursor when deleting broadcasts
 
-v1.0.7
-----------
+## v1.0.7 (2019-04-30)
  * delete broadcasts which no longer have any active messages
 
-v1.0.6
-----------
+## v1.0.6 (2019-04-25)
  * fix travis deploy
 
-v1.0.5
-----------
+## v1.0.5 (2019-04-25)
  * IMPORTANT: you must make sure that all your purged broadcasts have been archived before
    removing the recipients table (in RapidPro release)
  * remove archival of purged broadcasts in preparation of removal of recipients table
 
-v1.0.4
-----------
+## v1.0.4 (2019-04-25)
  * IMPORTANT: you must make sure that all your purged broadcasts have been archived before
    removing the recipients table (in RapidPro release)
  * remove archival of purged broadcasts in preparation of removal of recipients table
 
-v1.0.3
-----------
+## v1.0.3 (2019-04-17)
  * convert to go module
  * add testing for pg 10
  * properly archive surveyor messages
 
-v1.0.2
-----------
+## v1.0.2 (2019-01-08)
  * give ourselves up to 3 hours per archive deletion, 15 mins per transaction
 
-v1.0.1
-----------
+## v1.0.1 (2018-10-22)
  * add uuid to run archives
 
-v1.0.0
-----------
+## v1.0.0 (2018-07-24)
 * 1.0 release
 * be more specific in our reference to modified_on
 
-v0.0.27
-----------
+## v0.0.27 (2018-07-24)
  * add modified-on to message archives
 
-v0.0.26
-----------
+## v0.0.26 (2018-06-21)
  * make sure sent status is written for messages
  * fix run.values export format
 
-v0.0.25
-----------
+## v0.0.25 (2018-06-18)
  * add submitted_by to flow runs, populate with username of user that submitted
 
-v0.0.24
-----------
+## v0.0.24 (2018-06-14)
  * revert change to message type, purged messages from broadcasts should be flow
 
-v0.0.22
-----------
+## v0.0.22 (2018-06-14)
  * use primary_language field for default language for org
 
-v0.0.21
-----------
+## v0.0.21 (2018-06-14)
  * create purged messages from broadcasts
 
-v0.0.20
-----------
+## v0.0.20 (2018-06-11)
  * update docs, more consistent command line
  * turn archiver into service
  * deletion_date->deleted_on
 
-v0.0.19
-----------
+## v0.0.19 (2018-06-08)
  * increase timeout for calculation of all run ids in an archive
 
-v0.0.18
-----------
+## v0.0.18 (2018-06-08)
  * add deletion of runs
 
-v0.0.17
-----------
+## v0.0.17 (2018-06-05)
  * add support for multipart uploads and archives > 5 gigs
 
-v0.0.16
-----------
+## v0.0.16 (2018-06-05)
  * add deletion_date field, write upon deletion
 
-v0.0.15
-----------
+## v0.0.15 (2018-06-05)
  * better context management in archival deletion
 
-v0.0.14
-----------
+## v0.0.14 (2018-06-05)
  * bump batch size down to 100
 
-v0.0.13
-----------
+## v0.0.13 (2018-06-05)
  * dont try to build archives that are too big
 
-v0.0.12
-----------
+## v0.0.12 (2018-06-04)
  * allow msgs with null channels, dont archive test contacts
 
-v0.0.11
-----------
+## v0.0.11 (2018-06-04)
  * deletion of messages after archiving
  * more logging, add status logging of deletions
  * more tests, remove cascades so we test accurately, rollups dont need purging
  * correct set of incantations to get UTC dates out of golang/pg
 
-v0.0.10
-----------
+## v0.0.10 (2018-05-22)
  * increase unit test coverage of rollup cases
 
-v0.0.9
-----------
+## v0.0.9 (2018-05-22)
  * create montly archives when doing backfills, add input and value to run outputs
 
-v0.0.8
-----------
+## v0.0.8 (2018-05-19)
  * don't download 0 record archives when building monthlies
 
-v0.0.7
-----------
+## v0.0.7 (2018-05-19)
  * archive flow runs based on modified instead of created
 
-v0.0.6
-----------
+## v0.0.6 (2018-05-18)
  * add tests for flow runs, test file contents as well
  * add writing of rollup id to writing of monthlies to db
  * add montly rollups based on day archives
  * don't serialize urns for anon orgs, fix attachment serialization
  * use JSONL - line delimted JSON as archive format
 
-v0.0.5
-----------
+## v0.0.5 (2018-05-12)
  * add request tracing at debug level
 
-v0.0.4
-----------
+## v0.0.4 (2018-05-12)
  * switch to md5 hashes, verify upon upload, better logs
 
-v0.0.3
-----------
+## v0.0.3 (2018-05-12)
  * tweak config var for bucket name
  * ignore deleted messages when archiving
 
