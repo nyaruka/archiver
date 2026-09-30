@@ -12,7 +12,8 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
@@ -22,11 +23,11 @@ import (
 	"github.com/nyaruka/null/v3"
 )
 
-// any file over this needs to be uploaded in chunks
-const maxSingleUploadBytes = 5e9 // 5GB
+// any file over this needs to be uploaded in chunks (vars so tests can exercise multi-part uploads)
+var maxSingleUploadBytes int64 = 5e9 // 5GB
 
 // size of chunk to use when doing multi-part uploads
-const chunkSizeBytes = 1e9 // 1GB
+var chunkSizeBytes int64 = 1e9 // 1GB
 
 // NewS3Client creates a new s3 service from the passed in config, testing it as necessary
 func NewS3Client(cfg *runtime.Config, test bool) (*s3x.Service, error) {
@@ -76,23 +77,24 @@ func UploadToS3(ctx context.Context, s3Client *s3x.Service, bucket string, path 
 			return err
 		}
 	} else {
-		// this file is bigger than limit, use an upload manager instead, it will take care of uploading in parts
-		uploader := manager.NewUploader(
+		// this file is bigger than limit, use a transfer manager instead, it will take care of uploading in parts
+		uploader := transfermanager.New(
 			s3Client.Client,
-			func(u *manager.Uploader) {
-				u.PartSize = chunkSizeBytes
+			func(o *transfermanager.Options) {
+				o.PartSizeBytes = chunkSizeBytes
+				o.MultipartUploadThreshold = maxSingleUploadBytes
 			},
 		)
-		params := &s3.PutObjectInput{
+		params := &transfermanager.UploadObjectInput{
 			Bucket:          aws.String(bucket),
 			Key:             aws.String(path),
 			Body:            f,
 			ContentType:     aws.String("application/json"),
 			ContentEncoding: aws.String("gzip"),
-			ACL:             types.ObjectCannedACLPrivate,
+			ACL:             tmtypes.ObjectCannedACLPrivate,
 		}
 
-		if _, err := uploader.Upload(ctx, params); err != nil {
+		if _, err := uploader.UploadObject(ctx, params); err != nil {
 			return err
 		}
 	}
