@@ -23,11 +23,11 @@ import (
 	"github.com/nyaruka/null/v3"
 )
 
-// any file over this needs to be uploaded in chunks
-const maxSingleUploadBytes = 5e9 // 5GB
+// any file over this needs to be uploaded in chunks (vars so tests can exercise multi-part uploads)
+var maxSingleUploadBytes int64 = 5e9 // 5GB
 
 // size of chunk to use when doing multi-part uploads
-const chunkSizeBytes = 1e9 // 1GB
+var chunkSizeBytes int64 = 1e9 // 1GB
 
 // NewS3Client creates a new s3 service from the passed in config, testing it as necessary
 func NewS3Client(cfg *runtime.Config, test bool) (*s3x.Service, error) {
@@ -82,6 +82,7 @@ func UploadToS3(ctx context.Context, s3Client *s3x.Service, bucket string, path 
 			s3Client.Client,
 			func(o *transfermanager.Options) {
 				o.PartSizeBytes = chunkSizeBytes
+				o.MultipartUploadThreshold = maxSingleUploadBytes
 			},
 		)
 		params := &transfermanager.UploadObjectInput{
