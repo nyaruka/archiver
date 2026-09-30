@@ -12,7 +12,8 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/middleware"
@@ -76,23 +77,23 @@ func UploadToS3(ctx context.Context, s3Client *s3x.Service, bucket string, path 
 			return err
 		}
 	} else {
-		// this file is bigger than limit, use an upload manager instead, it will take care of uploading in parts
-		uploader := manager.NewUploader(
+		// this file is bigger than limit, use a transfer manager instead, it will take care of uploading in parts
+		uploader := transfermanager.New(
 			s3Client.Client,
-			func(u *manager.Uploader) {
-				u.PartSize = chunkSizeBytes
+			func(o *transfermanager.Options) {
+				o.PartSizeBytes = chunkSizeBytes
 			},
 		)
-		params := &s3.PutObjectInput{
+		params := &transfermanager.UploadObjectInput{
 			Bucket:          aws.String(bucket),
 			Key:             aws.String(path),
 			Body:            f,
 			ContentType:     aws.String("application/json"),
 			ContentEncoding: aws.String("gzip"),
-			ACL:             types.ObjectCannedACLPrivate,
+			ACL:             tmtypes.ObjectCannedACLPrivate,
 		}
 
-		if _, err := uploader.Upload(ctx, params); err != nil {
+		if _, err := uploader.UploadObject(ctx, params); err != nil {
 			return err
 		}
 	}
