@@ -1,3 +1,8 @@
+## v26.3.6 (2026-09-30)
+ * Replace deprecated S3 upload manager with transfermanager, making size limits overridable to test multi-part uploads
+ * Run tests against SeaweedFS instead of localstack, gating CI on its health check
+ * Update dependencies
+
 ## v26.3.5 (2026-09-08)
  * Update to go 1.27
 
