@@ -23,37 +23,37 @@ SELECT rec.visibility, row_to_json(rec) FROM (
 	SELECT
 		mm.uuid,
 		mm.id,
-		broadcast_id AS broadcast,
+		mm.broadcast_id AS broadcast,
 		row_to_json(contact) AS contact,
 		CASE WHEN oo.is_anon = FALSE THEN ccu.identity ELSE NULL END AS urn,
 		row_to_json(channel) AS channel,
 		row_to_json(flow) AS flow,
 		mm.ticket_uuid,
-		CASE WHEN direction = 'I' THEN 'in' WHEN direction = 'O' THEN 'out' ELSE NULL END AS direction,
+		CASE WHEN mm.direction = 'I' THEN 'in' WHEN mm.direction = 'O' THEN 'out' ELSE NULL END AS direction,
 		CASE 
-			WHEN msg_type = 'T' THEN 'text'
-			WHEN msg_type = 'O' THEN 'optin'
-			WHEN msg_type = 'V' THEN 'voice'
+			WHEN mm.msg_type = 'T' THEN 'text'
+			WHEN mm.msg_type = 'O' THEN 'optin'
+			WHEN mm.msg_type = 'V' THEN 'voice'
 			ELSE NULL 
 		END AS "type",
 		CASE 
-			WHEN status = 'I' THEN 'initializing'
-			WHEN status = 'P' THEN 'queued'
-			WHEN status = 'Q' THEN 'queued'
-			WHEN status = 'W' THEN 'wired'
-			WHEN status = 'D' THEN 'delivered'
-			WHEN status = 'H' THEN 'handled'
-			WHEN status = 'E' THEN 'errored'
-			WHEN status = 'F' THEN 'failed'
-			WHEN status = 'S' THEN 'sent'
-			WHEN status = 'R' THEN 'read'
+			WHEN mm.status = 'I' THEN 'initializing'
+			WHEN mm.status = 'P' THEN 'queued'
+			WHEN mm.status = 'Q' THEN 'queued'
+			WHEN mm.status = 'W' THEN 'wired'
+			WHEN mm.status = 'D' THEN 'delivered'
+			WHEN mm.status = 'H' THEN 'handled'
+			WHEN mm.status = 'E' THEN 'errored'
+			WHEN mm.status = 'F' THEN 'failed'
+			WHEN mm.status = 'S' THEN 'sent'
+			WHEN mm.status = 'R' THEN 'read'
 			ELSE NULL 
 		END AS status,
 		-- archived state comes from folder, but deletion stays keyed on visibility, which is set on
 		-- rows predating the folder column and so is authoritative for messages old enough to archive
-		CASE WHEN visibility IN ('D', 'X') THEN 'deleted' WHEN folder = 'A' THEN 'archived' ELSE 'visible' END AS visibility,
-		text,
-		(SELECT coalesce(jsonb_agg(attach_row), '[]'::jsonb) FROM (SELECT attach_data.attachment[1] AS content_type, attach_data.attachment[2] AS url FROM (SELECT regexp_matches(unnest(attachments), '^(.*?):(.*)$') attachment) AS attach_data) AS attach_row) AS attachments,
+		CASE WHEN mm.visibility IN ('D', 'X') THEN 'deleted' WHEN mm.folder = 'A' THEN 'archived' ELSE 'visible' END AS visibility,
+		mm.text,
+		(SELECT coalesce(jsonb_agg(attach_row), '[]'::jsonb) FROM (SELECT attach_data.attachment[1] AS content_type, attach_data.attachment[2] AS url FROM (SELECT regexp_matches(unnest(mm.attachments), '^(.*?):(.*)$') attachment) AS attach_data) AS attach_row) AS attachments,
 		labels_agg.data AS labels,
 		mm.created_on,
 		mm.sent_on,
