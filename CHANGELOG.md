@@ -1,3 +1,7 @@
+## v26.3.7 (2026-11-18)
+ * Qualify msgs_msg columns in the message archive query
+ * Update dependencies
+
 ## v26.3.6 (2026-09-30)
  * Replace deprecated S3 upload manager with transfermanager, making size limits overridable to test multi-part uploads
  * Run tests against SeaweedFS instead of localstack, gating CI on its health check
