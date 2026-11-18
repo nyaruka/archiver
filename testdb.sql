@@ -29,6 +29,7 @@ CREATE TABLE orgs_org (
     name character varying(128) NOT NULL,
     is_anon boolean NOT NULL,
     is_active boolean NOT NULL,
+    status character varying(1) NOT NULL DEFAULT 'A',
     created_on timestamp with time zone NOT NULL
 );
 
