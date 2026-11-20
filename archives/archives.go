@@ -239,7 +239,8 @@ UNION DISTINCT
    SELECT missing_day::timestamp with time zone
      FROM month_days 
 LEFT JOIN curr_archives ON curr_archives.start_date = month_days.missing_day
-    WHERE curr_archives.start_date IS NULL`
+    WHERE curr_archives.start_date IS NULL
+ ORDER BY missing_day`
 
 // GetMissingDailyArchivesForDateRange returns all the missing daily archives between the two passed in date ranges
 func GetMissingDailyArchivesForDateRange(ctx context.Context, db *sqlx.DB, startDate time.Time, endDate time.Time, org Org, archiveType ArchiveType) ([]*Archive, error) {
@@ -285,6 +286,7 @@ WITH month_days(missing_month) AS (
      FROM month_days 
 LEFT JOIN curr_archives ON curr_archives.start_date = month_days.missing_month
     WHERE curr_archives.start_date IS NULL
+ ORDER BY missing_month
 `
 
 // GetMissingMonthlyArchives gets which monthly archives are currently missing for this org
