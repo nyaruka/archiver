@@ -1,3 +1,8 @@
+## v26.3.9 (2026-11-20)
+ * Run CI against PostgreSQL 18
+ * Order missing archive lookups by date
+ * Update dependencies
+
 ## v26.3.8 (2026-11-20)
  * Check for existing archives with EXISTS instead of counting them
 
