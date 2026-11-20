@@ -1,3 +1,6 @@
+## v26.3.10 (2026-11-20)
+ * Discard database connections that hit read-only errors
+
 ## v26.3.9 (2026-11-20)
  * Run CI against PostgreSQL 18
  * Order missing archive lookups by date
