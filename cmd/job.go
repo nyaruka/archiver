@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/lib/pq"
 	"github.com/nyaruka/archiver/v26/archives"
 	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/nyaruka/gocommon/aws/cwatch"
+	"github.com/nyaruka/gocommon/dbutil"
 	"github.com/nyaruka/vkutil"
 	"github.com/vinovest/sqlx"
 )
@@ -50,13 +51,15 @@ func Job(defaults *runtime.Config, version, date string, logHandler slog.Handler
 		Config: cfg,
 	}
 
-	rt.DB, err = sqlx.Open("postgres", cfg.DB)
+	connector, err := dbutil.NewWriteConnector(cfg.DB)
 	if err != nil {
 		return fmt.Errorf("error opening db: %w", err)
 	}
+	rt.DB = sqlx.NewDb(sql.OpenDB(connector), "postgres")
 	rt.DB.SetMaxOpenConns(2)
+	rt.DB.SetConnMaxLifetime(10 * time.Minute)
 
-	// sqlx.Open doesn't dial — ping to verify connectivity so init fails fast
+	// sql.OpenDB doesn't dial — ping to verify connectivity so init fails fast
 	pingCtx, pingCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := rt.DB.PingContext(pingCtx); err != nil {
 		pingCancel()

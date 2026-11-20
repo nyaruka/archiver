@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,9 +16,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	_ "github.com/lib/pq"
 	"github.com/nyaruka/archiver/v26/runtime"
 	"github.com/nyaruka/gocommon/aws/cwatch"
+	"github.com/nyaruka/gocommon/dbutil"
 	"github.com/nyaruka/gocommon/dbutil/assertdb"
 	"github.com/nyaruka/vkutil"
 	"github.com/nyaruka/vkutil/locks"
@@ -44,8 +45,9 @@ func setup(t *testing.T) (context.Context, *runtime.Runtime) {
 	testDB, err := os.ReadFile("../testdb.sql")
 	require.NoError(t, err)
 
-	db, err := sqlx.Open("postgres", config.DB)
+	connector, err := dbutil.NewWriteConnector(config.DB)
 	require.NoError(t, err)
+	db := sqlx.NewDb(sql.OpenDB(connector), "postgres")
 
 	_, err = db.Exec(string(testDB))
 	require.NoError(t, err)
@@ -77,6 +79,38 @@ func setup(t *testing.T) (context.Context, *runtime.Runtime) {
 	})
 
 	return ctx, &runtime.Runtime{Config: config, DB: db, VK: vk, S3: s3Client, CW: CW}
+}
+
+func TestReadOnlyConnDiscarded(t *testing.T) {
+	ctx, rt := setup(t)
+
+	rt.DB.SetMaxOpenConns(1)
+
+	backendPID := func() int {
+		var pid int
+		require.NoError(t, rt.DB.GetContext(ctx, &pid, `SELECT pg_backend_pid()`))
+		return pid
+	}
+
+	pid1 := backendPID()
+
+	rt.DB.MustExecContext(ctx, `SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY`)
+	_, err := rt.DB.ExecContext(ctx, `DELETE FROM msgs_msg`)
+	assert.ErrorContains(t, err, "read-only transaction")
+
+	// the connection that got the read-only error should have been discarded rather than returned to the pool
+	pid2 := backendPID()
+	assert.NotEqual(t, pid1, pid2)
+
+	// same for a connection released by rolling back a transaction that got a read-only error
+	tx, err := rt.DB.BeginTxx(ctx, nil)
+	require.NoError(t, err)
+	tx.MustExecContext(ctx, `SET TRANSACTION READ ONLY`)
+	_, err = tx.ExecContext(ctx, `DELETE FROM msgs_msg`)
+	assert.ErrorContains(t, err, "read-only transaction")
+	require.NoError(t, tx.Rollback())
+
+	assert.NotEqual(t, pid2, backendPID())
 }
 
 func TestHasArchives(t *testing.T) {
