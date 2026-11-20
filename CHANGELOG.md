@@ -1,3 +1,6 @@
+## v26.3.8 (2026-11-20)
+ * Check for existing archives with EXISTS instead of counting them
+
 ## v26.3.7 (2026-11-18)
  * Qualify msgs_msg columns in the message archive query
  * Update dependencies
