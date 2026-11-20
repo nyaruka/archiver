@@ -99,7 +99,18 @@ func TestReadOnlyConnDiscarded(t *testing.T) {
 	assert.ErrorContains(t, err, "read-only transaction")
 
 	// the connection that got the read-only error should have been discarded rather than returned to the pool
-	assert.NotEqual(t, pid1, backendPID())
+	pid2 := backendPID()
+	assert.NotEqual(t, pid1, pid2)
+
+	// same for a connection released by rolling back a transaction that got a read-only error
+	tx, err := rt.DB.BeginTxx(ctx, nil)
+	require.NoError(t, err)
+	tx.MustExecContext(ctx, `SET TRANSACTION READ ONLY`)
+	_, err = tx.ExecContext(ctx, `DELETE FROM msgs_msg`)
+	assert.ErrorContains(t, err, "read-only transaction")
+	require.NoError(t, tx.Rollback())
+
+	assert.NotEqual(t, pid2, backendPID())
 }
 
 func TestHasArchives(t *testing.T) {
