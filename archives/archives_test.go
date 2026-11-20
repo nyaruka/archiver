@@ -79,6 +79,29 @@ func setup(t *testing.T) (context.Context, *runtime.Runtime) {
 	return ctx, &runtime.Runtime{Config: config, DB: db, VK: vk, S3: s3Client, CW: CW}
 }
 
+func TestHasArchives(t *testing.T) {
+	ctx, rt := setup(t)
+
+	orgs, err := GetActiveOrgs(ctx, rt)
+	assert.NoError(t, err)
+
+	tcs := []struct {
+		org         Org
+		archiveType ArchiveType
+		expected    bool
+	}{
+		{orgs[0], MessageType, false},
+		{orgs[2], MessageType, true},
+		{orgs[2], RunType, false},
+	}
+
+	for _, tc := range tcs {
+		has, err := HasArchives(ctx, rt.DB, tc.org, tc.archiveType)
+		assert.NoError(t, err)
+		assert.Equal(t, tc.expected, has, "has archives mismatch for org %d, type %s", tc.org.ID, tc.archiveType)
+	}
+}
+
 func TestGetMissingDayArchives(t *testing.T) {
 	ctx, rt := setup(t)
 

@@ -174,7 +174,7 @@ func GetArchivesToPurge(ctx context.Context, db *sqlx.DB, org Org, archiveType A
 }
 
 const sqlOrgHasArchives = `
-SELECT EXISTS(SELECT 1 FROM archives_archive WHERE org_id = $1 AND archive_type = $2 LIMIT 1)`
+SELECT EXISTS(SELECT 1 FROM archives_archive WHERE org_id = $1 AND archive_type = $2)`
 
 // HasArchives returns whether the passed in org has any archives of the given type
 func HasArchives(ctx context.Context, db *sqlx.DB, org Org, archiveType ArchiveType) (bool, error) {
