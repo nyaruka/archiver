@@ -173,23 +173,21 @@ func GetArchivesToPurge(ctx context.Context, db *sqlx.DB, org Org, archiveType A
 	return archives, nil
 }
 
-const sqlCountOrgArchives = `
-SELECT count(id) 
-  FROM archives_archive 
- WHERE org_id = $1 AND archive_type = $2`
+const sqlOrgHasArchives = `
+SELECT EXISTS(SELECT 1 FROM archives_archive WHERE org_id = $1 AND archive_type = $2 LIMIT 1)`
 
-// GetCurrentArchiveCount returns the archive count for the passed in org and record type
-func GetCurrentArchiveCount(ctx context.Context, db *sqlx.DB, org Org, archiveType ArchiveType) (int, error) {
+// HasArchives returns whether the passed in org has any archives of the given type
+func HasArchives(ctx context.Context, db *sqlx.DB, org Org, archiveType ArchiveType) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
-	var archiveCount int
+	var exists bool
 
-	if err := db.GetContext(ctx, &archiveCount, sqlCountOrgArchives, org.ID, archiveType); err != nil {
-		return 0, fmt.Errorf("error querying archive count for org: %d and type: %s: %w", org.ID, archiveType, err)
+	if err := db.GetContext(ctx, &exists, sqlOrgHasArchives, org.ID, archiveType); err != nil {
+		return false, fmt.Errorf("error checking archives exist for org: %d and type: %s: %w", org.ID, archiveType, err)
 	}
 
-	return archiveCount, nil
+	return exists, nil
 }
 
 // between is inclusive on both sides
@@ -680,13 +678,13 @@ func (r archiveResults) stats() archiveStats {
 func CreateOrgArchives(ctx context.Context, rt *runtime.Runtime, now time.Time, org Org, archiveType ArchiveType) (archiveResults, error) {
 	var res archiveResults
 
-	archiveCount, err := GetCurrentArchiveCount(ctx, rt.DB, org, archiveType)
+	hasArchives, err := HasArchives(ctx, rt.DB, org, archiveType)
 	if err != nil {
-		return res, fmt.Errorf("error getting current archive count: %w", err)
+		return res, fmt.Errorf("error checking for existing archives: %w", err)
 	}
 
 	// no existing archives means this might be a backfill, figure out if there are full months we can build first
-	if archiveCount == 0 {
+	if !hasArchives {
 		archives, err := GetMissingMonthlyArchives(ctx, rt.DB, now, org, archiveType)
 		if err != nil {
 			return res, fmt.Errorf("error getting missing monthly archives: %w", err)
